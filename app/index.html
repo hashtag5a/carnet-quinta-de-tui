@@ -130,12 +130,41 @@ async function boot(){
   const hash = location.hash;
   if(hash.startsWith('#comercio')) return renderMerchantSignup();
   const m = hash.match(/[#&]([cp])=([0-9a-f]+)/i);
-  if(m){sessionStorage.setItem('qt_code', m[1]+':'+m[2]); history.replaceState(null,'',location.pathname)}
+  if(m) ssSet('qt_code', m[1]+':'+m[2]);
+  const st = hash.match(/^#(gol|calendario|aficionado|ruleta|navidad|loteria)$/); if(st) ssSet('qt_story', st[1]);
+  const inv = hash.match(/^#invita-(\d+)$/); if(inv) lsSet('qt_ref', inv[1]);
+  const gf = hash.match(/^#regalo-([0-9a-f]+)$/); if(gf) ssSet('qt_gift', gf[1]);
+  if(hash) history.replaceState(null,'',location.pathname);
   const {data:{session}} = await sb.auth.getSession();
   if(!session) return renderLogin();
   S.user = session.user;
-  await loadAll();
+  await afterLogin();
 }
+function ssSet(k,v){try{sessionStorage.setItem(k,v)}catch(e){}}
+function ssGet(k){try{return sessionStorage.getItem(k)}catch(e){return null}}
+function ssDel(k){try{sessionStorage.removeItem(k)}catch(e){}}
+function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
+async function afterLogin(){
+  const g = ssGet('qt_gift');
+  if(g){ssDel('qt_gift'); try{const r=await rpc('claim_gift',{p_code:g}); S.cur=r.id; S.giftOpened=true}catch(e){toast(e.message,true)}}
+  await loadAll();
+  const story = ssGet('qt_story');
+  if(story && S.cards.length){ssDel('qt_story'); modal(storyHTML(story)+'<button class="full mt" onclick="closeModal()">Ir a mi carnet</button>')}
+  if(S.giftOpened){S.giftOpened=false; const c=cur(); modal(`<div class="center"><img src="escudo.jpg" style="width:110px;border-radius:50%"><h2>¡Bienvenido a la Quinta, ${esc(c.first_name)}!</h2><p>Este carnet es un regalo. Ya eres socio nº ${c.member_no}.</p><p class="muted small">Elige en «Partidos» los equipos que quieres seguir.</p><button class="full" onclick="closeModal()">Ver mi carnet</button></div>`)}
+}
+
+/* ---------- finales de las historias de los WhatsApp ---------- */
+const STORIES = {
+  gol:{t:'Era su abuelo.',p:['Socio número 12.','Esa mañana se levantó temprano, cogió el coche y se sentó en la grada sin avisar a nadie.','Cuando su nieto lo vio, se olvidó de seguir celebrando. Subió corriendo a abrazarlo.','El abuelo sumó unos puntos en su carnet. Su nieto, un recuerdo para toda la vida.'],c:'Hazte socio y no te pierdas ningún gol.'},
+  calendario:{t:'En su móvil estaba todo.',p:['Hora, pabellón y rival del partido de mañana. Y el resultado del sábado pasado.','Sin buscar entre 214 mensajes. Sin esperar a que alguien conteste.','Es el carnet de socio de la Quinta. Eliges el equipo de tu hijo y lo tienes siempre a mano.'],c:'Los avisos oficiales siguen llegando por el grupo del equipo. El carnet no lo sustituye: lo tiene todo ordenado.'},
+  aficionado:{t:'Gol.',p:['El señor de la gorra es socio número 31.','No tiene a nadie en la pista. Pero con su carnet ayuda a que jueguen 224 chavales en un club donde juegan todos.','Y de paso, ahorra en los comercios de Tui.'],c:'No hace falta tener un hijo en la Quinta para ser de la Quinta.'},
+  ruleta:{t:'+10 puntos.',p:['No era el regalo de la semana. Esta vez no.','Pero mañana es el día siete. Y el día siete vale doble.','Ya ha puesto la alarma.'],c:'Con el carnet de socio, los niños juegan cada día, suman puntos y los cambian por premios del club.'},
+  navidad:{t:'«¿A qué hora juegas el sábado?»',p:['Dentro del sobre estaba su carnet de socio de la Quinta. Con su nombre.','Y una nota con letra torcida: «Para que no te pierdas ningún gol».'],c:'Regala un carnet estas Navidades. Con el pack familiar, cada carnet más cuesta 6 €, y te damos una tarjeta regalo lista para imprimir.'},
+  loteria:{t:'Esto es una historia.',p:['No sabemos si este año tocará.','Pero si te haces socio antes del 20 de diciembre, llevas 5 € del número de la Quinta.','Y la lotería de la Quinta solo la pueden comprar los socios.'],c:'Una participación por alta, para el titular adulto.'}
+};
+function storyHTML(k){const s=STORIES[k]; if(!s) return '';
+  return `<div class="box"><h2>${esc(s.t)}</h2>${s.p.map(x=>`<p>${esc(x)}</p>`).join('')}<p><b>${esc(s.c)}</b></p></div>`}
 async function loadAll(){
   const [teams, cards, admin, sets] = await Promise.all([
     sb.from('teams').select('id,name,category,is_flagship,sort,active').eq('active',true).order('sort').order('name'),
@@ -153,8 +182,10 @@ async function loadAll(){
 
 /* ---------- login por código al email ---------- */
 function renderLogin(){
+  const story = ssGet('qt_story'), gift = ssGet('qt_gift');
   app.innerHTML = `<div class="wrap"><div class="hero"><img src="escudo.jpg" alt="Escudo"><h1>Carnet de socio</h1><p class="muted">Quinta de Tui Futsal</p></div>
-  <div class="box"><h2>Entra o hazte socio</h2><p class="muted small">Te mandamos un código a tu email. Sin contraseñas.</p>
+  ${story?storyHTML(story):''}<div id="giftintro"></div>
+  <div class="box"><h2>${gift?'Abre tu carnet':'Entra o hazte socio'}</h2><p class="muted small">Te mandamos un código a tu email. Sin contraseñas.</p>
   <label>Tu email</label><input id="em" type="email" autocomplete="email" inputmode="email" placeholder="tu@email.com">
   <button class="full mt" id="b1">Enviarme el código</button>
   <div id="step2" style="display:none"><label>Código que te ha llegado</label><input id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456">
@@ -170,8 +201,9 @@ function renderLogin(){
   $('#b2').onclick = () => guard(async()=>{
     const {data,error}=await sb.auth.verifyOtp({email:$('#em').value.trim().toLowerCase(),token:$('#otp').value.trim(),type:'email'});
     if(error) throw new Error('Código incorrecto o caducado');
-    S.user=data.user; await loadAll();
+    S.user=data.user; await afterLogin();
   });
+  if(gift) rpc('gift_info',{p_code:gift}).then(g=>{ if(g) $('#giftintro').innerHTML=`<div class="banner ok"><b>${esc(g.first_name)}, te han regalado el carnet de socio de la Quinta.</b><br>Entra con tu email para abrirlo. No tienes que rellenar nada más.</div>`}).catch(()=>{});
 }
 
 /* ---------- alta de socios ---------- */
@@ -184,13 +216,16 @@ async function renderAlta(extra){
                                 : [{first_name:'',last_name:'',birth_date:'',relation:'familiar',teams:[]}];
   }
   const hasCards = S.cards.length>0;
+  const story = ssGet('qt_story');
   app.innerHTML = `<div class="wrap"><div class="hero" style="padding-top:8px"><img src="escudo.jpg" style="width:90px"><h1>${hasCards?'Añadir carnets':'Hazte socio'}</h1></div>
+  ${story&&!hasCards?storyHTML(story):''}
   ${prefill.length?`<div class="banner ok">Ya te teníamos en el club: hemos rellenado tus datos. Revísalos y confirma.</div>`:''}
   <div class="box"><p class="muted small">Un carnet por persona. ${hasCards?'Cada carnet más de tu familia cuesta '+pr.familiar+' €.':'El primero cuesta '+pr.individual+' € al año y cada uno más de tu familia, '+pr.familiar+' €.'} Si es menor de 14 años, el alta la hace su padre o su madre.</p>
   <div id="people"></div><button class="sec full" id="addp">+ Añadir otra persona de la familia</button></div>
   ${hasCards?'':`<div class="box"><h3>Socio protector (opcional)</h3><p class="muted small">Si quieres ayudar más al club, tu carnet puede ser de protector. Saldrás en el muro de agradecimiento.</p>
   <div class="chips" id="prot"><button class="chip on" data-v="">Normal</button>${(pr.protector||[]).map(v=>`<button class="chip" data-v="${v}">Protector ${v} €</button>`).join('')}</div></div>`}
-  <div class="box"><label>Teléfono móvil</label><input id="tel" type="tel" inputmode="tel" placeholder="600 000 000" value="${esc((prefill[0]||{}).phone||'')}">
+  <div class="box">${hasCards?'':`<label>¿Te ha invitado un socio? Su número de socio</label><input id="ref" inputmode="numeric" value="${esc(lsGet('qt_ref')||'')}" placeholder="Opcional">`}
+  <label>Tu teléfono móvil</label><input id="tel" type="tel" inputmode="tel" placeholder="600 000 000" value="${esc((prefill[0]||{}).phone||'')}">
   <div class="chk"><input type="checkbox" id="cc"><span>Quiero recibir noticias, avisos y ventajas del club por email y en la app.</span></div>
   <div class="chk"><input type="checkbox" id="pp"><span>He leído y acepto el tratamiento de mis datos por Quinta de Tui Futsal para gestionar el carnet de socio.</span></div>
   <div id="total" class="big mt"></div>
@@ -202,8 +237,9 @@ async function renderAlta(extra){
       <div class="grid2"><div><label>Nombre</label><input data-i="${i}" data-k="first_name" value="${esc(p.first_name)}"></div><div><label>Apellidos</label><input data-i="${i}" data-k="last_name" value="${esc(p.last_name)}"></div></div>
       <div class="grid2"><div><label>Fecha de nacimiento</label><input type="date" data-i="${i}" data-k="birth_date" value="${esc(p.birth_date)}"></div>
       <div><label>Relación con el club</label><select data-i="${i}" data-k="relation">${['jugador','familiar','aficionado'].map(r=>`<option ${p.relation===r?'selected':''}>${r}</option>`).join('')}</select></div></div>
+      <div class="chk"><input type="checkbox" data-i="${i}" data-k="gift" ${p.gift?'checked':''}><span>Es un regalo para otra persona. Te damos una tarjeta regalo para imprimir y su carnet se abre con un QR.</span></div>
       <label>Equipos que sigue</label><div class="chips">${S.teams.map(t=>`<button class="chip ${p.teams.includes(t.id)?'on':''}" data-i="${i}" data-t="${t.id}">${esc(t.name)}</button>`).join('')||'<span class="muted small">Aún no hay equipos cargados</span>'}</div></div>`).join('');
-    $('#people').querySelectorAll('input,select').forEach(el=>el.oninput=()=>{altaPeople[+el.dataset.i][el.dataset.k]=el.value});
+    $('#people').querySelectorAll('input,select').forEach(el=>el.oninput=()=>{altaPeople[+el.dataset.i][el.dataset.k]=el.type==='checkbox'?el.checked:el.value});
     $('#people').querySelectorAll('[data-t]').forEach(el=>el.onclick=()=>{const p=altaPeople[+el.dataset.i],t=+el.dataset.t;p.teams=p.teams.includes(t)?p.teams.filter(x=>x!==t):[...p.teams,t];draw()});
     const n=altaPeople.length; const first = hasCards?pr.familiar:(protector?+protector:pr.individual);
     $('#total').textContent = (first + (n-1)*pr.familiar) + ' € / año';
@@ -217,9 +253,11 @@ async function renderAlta(extra){
     const phone=$('#tel').value.trim();
     const items = altaPeople.map(p=>({...p,phone}));
     $('#go').disabled=true;
-    try{ await rpc('register_members',{p_items:items,p_consent:$('#cc').checked,p_protector:protector?+protector:null}); }
+    const ref = $('#ref') && $('#ref').value.trim() ? +$('#ref').value.trim() : null;
+    try{ await rpc('register_members',{p_items:items.map(p=>p.gift?{...p,phone:''}:p),p_consent:$('#cc').checked,p_protector:protector?+protector:null,p_referral:ref}); }
     finally{ $('#go').disabled=false }
-    altaPeople=[]; S.tab='carnet'; await loadAll(); toast('¡Alta hecha!');
+    const gifts = items.some(p=>p.gift); altaPeople=[]; ssDel('qt_story'); S.tab='carnet'; await loadAll();
+    toast(gifts?'¡Alta hecha! La tarjeta regalo la tienes en el carnet del regalado.':'¡Alta hecha!');
   });
 }
 
@@ -252,21 +290,66 @@ async function viewCarnet(el, c){
   ${c.status==='caducado'?`<div class="banner bad"><b>Tu carnet ha caducado.</b> Renuévalo para no perder tus puntos ni tus ventajas.<br>${esc(pago).replace(/\{numero\}/g,c.member_no)}</div>`:''}
   ${c.status==='activo'&&days!==null&&days<=30?`<div class="banner warn">Tu carnet caduca en ${days} día${days===1?'':'s'}. Renuévalo para seguir con tus ventajas.<br>${esc(pago).replace(/\{numero\}/g,c.member_no)}</div>`:''}
   <div class="carnet" style="${c.status==='activo'?'':'filter:grayscale(1);opacity:.75'}"><img class="crest" src="escudo.jpg" alt="">
-    <div class="club">QUINTA DE TUI FUTSAL · ${c.is_protector?'SOCIO PROTECTOR':'SOCIO'}</div>
+    <div class="club">QUINTA DE TUI FUTSAL · ${c.is_protector?'SOCIO PROTECTOR':'SOCIO'}${c.founder?' · FUNDADOR':''}</div>
     <div class="name">${esc(c.first_name)} ${esc(c.last_name)}</div>
     <div class="no">Nº ${c.member_no} · <span class="tag ${c.status}">${statusTxt(c.status)}</span></div>
     ${c.paid_until?`<div class="muted small" style="margin-top:4px">Válido hasta el ${fmtDay(c.paid_until)}</div>`:''}
     <div class="qr"><img src="${qrImg('QUINTA-SOCIO-'+c.member_no,5)}" alt="QR del carnet"></div>
     <div class="pts"><b>${c.points}</b><span class="muted small">puntos</span></div>
   </div>
+  ${c.gift_code?`<div class="banner ${[0,1].includes(new Date().getMonth())?'warn':'ok'}"><b>Este carnet es un regalo para ${esc(c.first_name)}.</b> Todavía no lo ha abierto.${c.status==='activo'?'':' Se activará cuando recibamos el pago.'}<br><button class="mt" onclick="printGift('${c.id}')">🎁 Tarjeta regalo para imprimir</button>${[0,1].includes(new Date().getMonth())?'<br><span class="small">Recuérdale que lo abra: solo tiene que escanear el QR de la tarjeta.</span>':''}</div>`:''}
   <button class="full" onclick="openScanner()">📷 Escanear QR de comercio o partido</button>
   <p class="muted small center">Enseña este carnet en los comercios adheridos para tu descuento y escanea su QR para sumar puntos.</p>
+  <div id="refbox"></div><div id="lotbox"></div>
   <div class="box"><h3>Tus ventajas</h3><ul class="list small">
    <li>🏪 Descuentos en los comercios adheridos</li><li>⚽ ${(S.settings.club||{}).campus_descuento||10}% de descuento en el campus Toñín Martín</li>
    <li>👕 Descuento en chándal, mochilas y prendas oficiales</li><li>🛍️ Preventa de merchandising del club</li>
    <li>🥤 Precio de socio en la cantina</li><li>🎡 Juegos, porra y premios con tus puntos</li><li>🏆 Prioridad en torneos y eventos</li></ul></div>
   <div class="box"><button class="sec full" onclick="altaPeople=[];renderAlta(true)">+ Añadir carnet a mi familia (${(S.settings.precios||{}).familiar||6} €)</button></div>
   <p class="center"><button class="link" onclick="logout()">Cerrar sesión</button> ${S.admin?'':'<button class="link" onclick="claimAdmin()">Soy administrador</button>'}</p>`;
+  loadRefBox(); loadLotBox();
+}
+async function loadRefBox(){
+  const r = await rpc('my_referrals').catch(()=>null); const el=$('#refbox'); if(!r||!el) return;
+  const link = APP_URL+'#invita-'+r.code, hitos=r.hitos||[], next=hitos.find(h=>r.count<h[0]);
+  el.innerHTML = `<div class="box"><h3>Trae a un socio</h3><p class="small">Por cada persona que se haga socia con tu número, <b>${r.puntos} puntos para ti y ${r.puntos} para ella</b> cuando pague. Los carnets de tu propia familia no cuentan.</p>
+   <p>Tu número de socio: <b>${r.code}</b></p>
+   <div class="row"><button class="sec" onclick="shareInvite('${esc(link)}')">Compartir invitación</button></div>
+   <p class="small mt">Has traído <b>${r.count}</b> socio${r.count===1?'':'s'}${r.pending?` (y ${r.pending} pendiente${r.pending===1?'':'s'} de pago)`:''}.${next?` Te faltan ${next[0]-r.count} para: ${esc(next[1])}.`:''}</p>
+   <ul class="list small">${hitos.map(h=>{const w=(r.rewards||[]).find(x=>x.milestone===h[0]);return `<li><div class="grow">${h[0]} socios: ${esc(h[1])}</div>${w?`<span class="tag ${w.delivered?'activo':'pendiente'}">${w.delivered?'CONSEGUIDO':'RECÓGELO EN EL CLUB'}</span>`:''}</li>`}).join('')}</ul></div>`;
+}
+function shareInvite(link){
+  const text='Hazte socio de la Quinta de Tui Futsal con mi número y nos llevamos puntos los dos: '+link;
+  if(navigator.share) navigator.share({text}).catch(()=>{}); else {navigator.clipboard?.writeText(text); toast('Invitación copiada')}
+}
+async function loadLotBox(){
+  const L=S.settings.loteria||{}, el=$('#lotbox'); if(!el||!L.activa) return;
+  const open = new Date().toISOString().slice(0,10) <= L.hasta;
+  const {data} = await sb.from('lottery').select('id,kind,qty,amount,status,created_at').order('created_at');
+  const mine=data||[]; if(!open && !mine.length) return;
+  const st={pendiente:'PENDIENTE',pagada:'PAGADA',entregada:'ENTREGADA'};
+  el.innerHTML=`<div class="box"><h3>🎄 Lotería de Navidad de la Quinta</h3>${L.numero?`<p>Número: <b>${esc(L.numero)}</b></p>`:''}
+   <p class="small">Solo para socios. Participaciones de ${L.importe} €. Sorteo el 22 de diciembre.</p>
+   ${mine.length?`<ul class="list small">${mine.map(l=>`<li><div class="grow">${l.kind==='regalo'?'Participación de regalo por hacerte socio':l.qty+' participación'+(l.qty>1?'es':'')+' · '+(+l.amount).toFixed(0)+' €'}</div><span class="tag ${l.status==='entregada'?'activo':'pendiente'}">${st[l.status]||l.status}</span></li>`).join('')}</ul><p class="muted small">Las participaciones se recogen en el club.</p>`:''}
+   ${open&&S.cards.some(x=>x.status==='activo')?`<div class="row mt"><select id="lq" style="flex:0 0 90px">${[1,2,3,4,5,10].map(n=>`<option>${n}</option>`).join('')}</select><button onclick="buyLottery()">Pedir participaciones</button></div>`:open?'<p class="muted small">Activa tu carnet para pedir participaciones.</p>':''}</div>`;
+}
+function buyLottery(){const q=+$('#lq').value, L=S.settings.loteria||{};
+  modal(`<h3>Pedir ${q} participación${q>1?'es':''}</h3><p>Total: <b>${q*L.importe} €</b>. Las pagas y recoges en el club.</p><div class="row"><button class="sec" onclick="closeModal()">Cancelar</button><button id="lok">Pedir</button></div>`);
+  $('#lok').onclick=()=>guard(async()=>{await rpc('lottery_request',{p_qty:q});closeModal();toast('Pedido hecho');loadLotBox()});
+}
+function printGift(id){
+  const c=S.cards.find(x=>x.id===id); if(!c) return;
+  const url=APP_URL+'#regalo-'+c.gift_code;
+  const w=window.open('','_blank'); if(!w) return toast('Permite las ventanas emergentes para imprimir',true);
+  w.document.write(`<html><head><title>Tarjeta regalo</title><style>body{margin:0;font-family:system-ui,sans-serif;background:#fff}
+   .card{width:180mm;margin:15mm auto;border:2px solid #111;border-radius:8mm;overflow:hidden;display:flex}
+   .l{background:#0d0d0d;color:#e8e0cc;padding:10mm;width:85mm;text-align:center}.l img{width:55mm;border-radius:50%}
+   .r{padding:10mm;flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center}.r img{width:45mm;margin:4mm auto}
+   h1{font-size:20pt;margin:4mm 0}h2{font-size:13pt;font-weight:500;margin:0}p{font-size:11pt}</style></head><body>
+   <div class="card"><div class="l"><img src="${APP_URL.replace(/[^/]*$/,'')}escudo.jpg"><h2>QUINTA DE TUI FUTSAL</h2><h1>Para ${esc(c.first_name)}</h1><p>Socio nº ${c.member_no}</p></div>
+   <div class="r"><h2>Te han regalado el carnet de socio</h2><img src="${qrImg(url,8)}"><p>Escanea el código con el móvil para abrir tu carnet.<br>Para que no te pierdas ningún gol.</p></div></div>
+   <script>setTimeout(()=>print(),600)<\/script></body></html>`);
+  w.document.close();
 }
 async function claimAdmin(){guard(async()=>{const ok=await rpc('claim_first_admin'); if(ok){toast('Ya eres administrador');S.admin=true;S.tab='admin';render()} else toast('Ya hay un administrador. Pídele acceso.',true)})}
 
@@ -397,12 +480,14 @@ function redeem(id, name, cost){
 /* ---------- Alta de comercios (pública) ---------- */
 function renderMerchantSignup(){
   document.body.style.paddingBottom='0';
-  app.innerHTML = `<div class="wrap"><div class="hero"><img src="escudo.jpg" alt=""><h1>Únete al carnet de socio</h1><p class="muted">Quinta de Tui Futsal</p></div>
+  app.innerHTML = `<div class="wrap"><div class="hero"><img src="escudo.jpg" alt=""><h1>Haz que celebren aquí.</h1><p class="muted">Carnet de socio · Quinta de Tui Futsal</p></div>
+  <div class="box"><p>Cuando termina un partido, familias enteras salen del pabellón buscando dónde celebrarlo. Queremos que ese sitio sea de Tui. Que sea el tuyo.</p></div>
   <div class="box"><h2>¿Qué gana tu comercio?</h2><ul class="list">
-   <li>👥 Clientes nuevos: cientos de familias del club, de Tui y alrededores, con un motivo para comprarte a ti.</li>
-   <li>📱 Tu logo en la app: sale en los juegos y los puzzles que los socios hacen cada día.</li>
-   <li>📊 Resultados medibles: cada mes te enviamos cuántos socios han pasado por tu tienda.</li>
-   <li>⚽ Apoyas al deporte base: un club sin ánimo de lucro con 18 equipos, donde juegan todos.</li></ul>
+   <li>🏘️ Formar parte del pueblo: tu comercio, unido al club, a los chavales y a las familias de Tui. De los sitios que se quedan en la historia de un pueblo.</li>
+   <li>⚽ Apoyar al deporte base: un club sin ánimo de lucro con 18 equipos, donde juegan todos y nadie se queda fuera.</li>
+   <li>👥 Clientes que vienen a por ti: las familias del club tienen un motivo para comprar en tu tienda y no en el centro comercial.</li>
+   <li>📱 Tu logo en la app: sale en los juegos que los socios hacen cada día.</li>
+   <li>📊 Cada mes te contamos cuántos socios han pasado por tu tienda.</li></ul>
    <p class="muted small">Tú solo pones un descuento para socios y un QR en el mostrador que te damos nosotros. Sin cuotas.</p></div>
   <div class="box" id="mf"><h2>Apúntate</h2>
    <label>Nombre del comercio *</label><input id="m_name"><label>Tipo de negocio</label><input id="m_cat" placeholder="Cafetería, taller, ropa…">
@@ -420,18 +505,21 @@ function renderMerchantSignup(){
 
 /* ======================= PANEL DE GESTIÓN ======================= */
 async function viewAdmin(el){
-  const subs=[['resumen','Resumen'],['socios','Socios'],['partidos','Equipos y partidos'],['comercios','Comercios'],['premios','Premios'],['sorpresas','Sorpresas'],['carteles','Carteles'],['ajustes','Ajustes']];
+  const subs=[['resumen','Resumen'],['socios','Socios'],['partidos','Equipos y partidos'],['comercios','Comercios'],['premios','Premios'],['sorpresas','Sorpresas'],['loteria','Lotería y regalos'],['carteles','Carteles'],['ajustes','Ajustes']];
   el.innerHTML = `<div class="subnav">${subs.map(s=>`<button class="chip ${S.atab===s[0]?'on':''}" data-a="${s[0]}">${s[1]}</button>`).join('')}</div><div id="adm"><p class="muted">Cargando…</p></div>`;
   el.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{S.atab=b.dataset.a;render()});
   const box=$('#adm');
-  await ({resumen:aResumen,socios:aSocios,partidos:aPartidos,comercios:aComercios,premios:aPremios,sorpresas:aSorpresas,carteles:aCarteles,ajustes:aAjustes}[S.atab])(box);
+  await ({resumen:aResumen,socios:aSocios,partidos:aPartidos,comercios:aComercios,premios:aPremios,sorpresas:aSorpresas,loteria:aLoteria,carteles:aCarteles,ajustes:aAjustes}[S.atab])(box);
 }
 async function aResumen(b){
   const o=await rpc('admin_overview');
   b.innerHTML=`<div class="stats"><div><b>${o.activos}</b><span>socios activos</span></div><div><b>${o.pendientes}</b><span>pendientes de pago</span></div><div><b>${o.caducan_30}</b><span>caducan en 30 días</span></div>
-   <div><b>${o.comercios_pendientes}</b><span>comercios por aprobar</span></div><div><b>${o.canjes_pendientes}</b><span>premios por entregar</span></div><div><b>${(+o.ingresos).toFixed(0)} €</b><span>en carnets activos</span></div></div>
+   <div><b>${o.comercios_pendientes}</b><span>comercios por aprobar</span></div><div><b>${o.canjes_pendientes}</b><span>premios por entregar</span></div><div><b>${(+o.ingresos).toFixed(0)} €</b><span>en carnets activos</span></div>
+   <div><b>${o.loteria_pendiente}</b><span>lotería por entregar</span></div><div><b>${o.regalos_sin_abrir}</b><span>regalos sin abrir</span></div></div>
    <div class="box"><h3>Enlaces para compartir</h3>
    <p class="small">Alta de socios:<br><b>${esc(APP_URL)}</b></p><button class="sec" onclick="copy('${esc(APP_URL)}')">Copiar</button>
+   <p class="small mt">Enlaces de los WhatsApp de lanzamiento (cada uno cierra su historia):</p>
+   <ul class="list small">${[['gol','1. El gol (familias)'],['calendario','2. El calendario'],['aficionado','3. El señor de la gorra'],['ruleta','4. La ruleta'],['loteria','Lotería'],['navidad','Navidad: el sobre del abuelo']].map(x=>`<li><div class="grow">${x[1]}<div class="muted">${esc(APP_URL)}#${x[0]}</div></div><button class="sec" style="flex:0" onclick="copy('${esc(APP_URL)}#${x[0]}')">Copiar</button></li>`).join('')}</ul>
    <p class="small mt">Alta de comercios:<br><b>${esc(APP_URL)}#comercio</b></p><div class="row"><button class="sec" onclick="copy('${esc(APP_URL)}#comercio')">Copiar</button><button class="sec" onclick="printQR('${esc(APP_URL)}#comercio','Únete al carnet de socio','Escanea para apuntar tu comercio')">QR para imprimir</button></div></div>`;
 }
 function copy(t){navigator.clipboard?.writeText(t).then(()=>toast('Copiado'))}
@@ -440,7 +528,7 @@ async function aSocios(b, q){
   q=q||'';
   const list=await rpc('admin_members',{p_search:q});
   b.innerHTML=`<div class="row"><input id="q" placeholder="Buscar por nombre, email, teléfono o nº" value="${esc(q)}"><button style="flex:0" id="qb">Buscar</button></div>
-   <p class="muted small">Cuando recibas el pago, pulsa Activar: el carnet queda activo un año.</p>
+   <p class="muted small">Cuando recibas el pago, pulsa Activar: el carnet queda activo hasta el 31 de agosto (las altas de julio y agosto, hasta el 31 de agosto siguiente).</p>
    <div class="box"><ul class="list">${list.map(m=>`<li><div class="grow"><b>${esc(m.first_name)} ${esc(m.last_name)}</b> <span class="muted small">nº ${m.member_no}</span> <span class="tag ${m.status}">${m.status.toUpperCase()}</span>${m.is_protector?' <span class="tag" style="border:1px solid var(--cream)">PROTECTOR</span>':''}
      <div class="muted small">${esc(m.email||'')} ${esc(m.phone||'')} · ${(+m.price).toFixed(0)} € · ${m.points} pts${m.paid_until?' · hasta '+fmtDay(m.paid_until):''}</div><div class="muted small">${esc(m.teams||'')}</div></div>
      <div style="display:flex;flex-direction:column;gap:4px;flex:none"><button onclick="actMember('${m.id}')">${m.status==='pendiente'?'Activar':'Renovar'}</button><button class="sec" onclick="addPts('${m.id}')">± pts</button></div></li>`).join('')||'<li class="muted">Sin socios</li>'}</ul></div>`;
@@ -521,12 +609,27 @@ async function aSorpresas(b){
 }
 function giftDone(t,r){guard(async()=>{await rpc('admin_gift_delivered',{p_tipo:t,p_ref:r});aSorpresas($('#adm'))})}
 
+async function aLoteria(b){
+  const [lot, rw, gc] = await Promise.all([rpc('admin_lottery'), rpc('admin_rewards'), rpc('admin_gift_cards')]);
+  const st={pendiente:'PENDIENTE',pagada:'PAGADA',entregada:'ENTREGADA'};
+  b.innerHTML=`<div class="box"><h3>Lotería</h3><p class="muted small">Regalos por alta y pedidos de socios. Márcalos al cobrar y al entregar.</p>
+    <ul class="list small">${lot.map(l=>`<li><div class="grow"><b>${l.kind==='regalo'?'Regalo por alta':l.qty+' participaciones · '+(+l.amount).toFixed(0)+' €'}</b><div class="muted">${esc(l.socio||'')} · ${esc(l.contacto||'')}</div></div>
+      <span class="tag ${l.status==='entregada'?'activo':'pendiente'}">${st[l.status]}</span>
+      ${l.status==='pendiente'&&l.kind==='compra'?`<button style="flex:0" onclick="lotSet(${l.id},'pagada')">Pagada</button>`:''}${l.status!=='entregada'?`<button class="sec" style="flex:0" onclick="lotSet(${l.id},'entregada')">Entregada</button>`:''}</li>`).join('')||'<li class="muted">Nada todavía</li>'}</ul>
+    <p class="muted small">Total participaciones: ${lot.reduce((a,l)=>a+l.qty,0)}</p></div>
+   <div class="box"><h3>Premios de «Trae a un socio»</h3><ul class="list small">${rw.map(r=>`<li><div class="grow"><b>${esc(r.reward)}</b> (${r.milestone} socios)<div class="muted">${esc(r.socio)}</div></div>${r.delivered?'<span class="tag activo">ENTREGADO</span>':`<button style="flex:0" onclick="rwDone(${r.id})">Entregado</button>`}</li>`).join('')||'<li class="muted">Nadie ha llegado aún a un premio</li>'}</ul></div>
+   <div class="box"><h3>Carnets regalados</h3><ul class="list small">${gc.map(g=>`<li><div class="grow"><b>${esc(g.destinatario)}</b> · nº ${g.member_no} <span class="tag ${g.status}">${g.status.toUpperCase()}</span><div class="muted">Lo regala: ${esc(g.regala||'')}</div></div>${g.gift_claimed_at?'<span class="tag activo">ABIERTO</span>':'<span class="tag pendiente">SIN ABRIR</span>'}</li>`).join('')||'<li class="muted">Ninguno</li>'}</ul></div>`;
+}
+function lotSet(id,st){guard(async()=>{await rpc('admin_lottery_set',{p_id:id,p_status:st});aLoteria($('#adm'))})}
+function rwDone(id){guard(async()=>{await rpc('admin_reward_delivered',{p_id:id});aLoteria($('#adm'))})}
 async function aCarteles(b){
   const today=new Date(), d=today.getDay(), mon=new Date(today); mon.setDate(today.getDate()-((d+6)%7)); const sun=new Date(mon); sun.setDate(mon.getDate()+6);
   const iso=x=>x.toISOString().slice(0,10);
   b.innerHTML=`<div class="box"><h3>Carteles de asistencia</h3><p class="muted small">Un QR distinto por partido en casa. Solo vale durante el partido y una vez por persona. Imprímelos y pégalos en la puerta del pabellón.</p>
     <div class="grid2"><div><label>Desde</label><input id="cf" type="date" value="${iso(mon)}"></div><div><label>Hasta</label><input id="ct" type="date" value="${iso(sun)}"></div></div>
-    <button class="mt" id="cgo">Generar carteles para imprimir</button></div>`;
+    <button class="mt" id="cgo">Generar carteles para imprimir</button></div>
+   <div class="box"><h3>Cartel fijo de alta</h3><p class="muted small">Para plastificar y dejar en la entrada del pabellón. Siempre lleva al alta de socios, no caduca.</p>
+    <button class="sec" onclick="printQR(APP_URL,'¿Eres de la Quinta?','Escanea y hazte socio en un minuto')">Imprimir cartel de alta</button></div>`;
   $('#cgo').onclick=()=>guard(async()=>{
     const ms=await rpc('admin_home_matches',{p_from:$('#cf').value,p_to:$('#ct').value});
     if(!ms.length) throw new Error('No hay partidos en casa en esas fechas');
@@ -549,9 +652,15 @@ async function aAjustes(b){
   const pago=(S.settings.pago||{}).texto||'';
   b.innerHTML=`<div class="box"><h3>Cómo pagar (mientras no haya pago online)</h3><p class="muted small">Lo ven los socios pendientes de pago. Puedes usar {numero} para su nº de socio.</p>
     <textarea id="pt" rows="3" placeholder="Haz un Bizum al 6XX XXX XXX con el concepto 'Carnet {numero}'.">${esc(pago)}</textarea><button class="mt" id="pok">Guardar</button></div>
+   <div class="box"><h3>Lotería de Navidad</h3><p class="muted small">Con cada alta activada hasta la fecha límite se regala una participación al titular. Solo los socios pueden pedir más.</p>
+    <div class="chk"><input type="checkbox" id="la" ${(S.settings.loteria||{}).activa?'checked':''}><span>Lotería activa</span></div>
+    <div class="grid2"><div><label>Número</label><input id="ln" value="${esc((S.settings.loteria||{}).numero||'')}"></div><div><label>Importe participación (€)</label><input id="li" type="number" value="${(S.settings.loteria||{}).importe||5}"></div></div>
+    <label>Fecha límite</label><input id="lh" type="date" value="${(S.settings.loteria||{}).hasta||''}"><button class="mt" id="lok">Guardar</button></div>
    <div class="box"><h3>Importar socios de Clubber</h3><p class="muted small">Exporta de Clubber un CSV con nombre, apellidos, email, teléfono, fecha de nacimiento y equipo. Cuando esa familia se dé de alta con su email, sus datos aparecerán ya rellenados. Al importar se sustituye la lista anterior.</p>
     <input type="file" id="csv" accept=".csv,text/csv"><div id="cprev" class="muted small mt"></div></div>`;
   $('#pok').onclick=()=>guard(async()=>{const {error}=await sb.from('settings').upsert({key:'pago',value:{texto:$('#pt').value.trim()}});if(error)throw error;S.settings.pago={texto:$('#pt').value.trim()};toast('Guardado')});
+  $('#lok').onclick=()=>guard(async()=>{const v={activa:$('#la').checked,numero:$('#ln').value.trim(),importe:+$('#li').value||5,hasta:$('#lh').value};
+    const {error}=await sb.from('settings').upsert({key:'loteria',value:v});if(error)throw error;S.settings.loteria=v;toast('Guardado')});
   $('#csv').onchange=e=>{const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>previewCSV(r.result); r.readAsText(f,'utf-8')};
 }
 function parseCSV(t){
