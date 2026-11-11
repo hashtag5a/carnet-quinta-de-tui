@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Carnet Quinta de Tui Futsal</title>
+<meta name="theme-color" content="#0d0d0d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<style>
+:root{--bg:#0d0d0d;--card:#181818;--line:#2c2c2c;--cream:#e8e0cc;--muted:#9a9488;--ok:#7bc47f;--warn:#e0b84f;--bad:#e06a5f}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--cream);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;-webkit-tap-highlight-color:transparent}
+body{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+a{color:var(--cream)}
+h1,h2,h3{margin:0 0 .6em;letter-spacing:.02em}
+h1{font-size:1.4rem}h2{font-size:1.15rem}h3{font-size:1rem}
+.wrap{max-width:560px;margin:0 auto;padding:16px}
+.top{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:5}
+.top img{width:40px;height:40px;border-radius:50%}
+.top .t{font-weight:700;letter-spacing:.05em;font-size:.95rem;flex:1}
+.top select{max-width:46%}
+.box{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+.muted{color:var(--muted);font-size:.9rem}
+.small{font-size:.82rem}
+label{display:block;font-size:.85rem;color:var(--muted);margin:10px 0 4px}
+input,select,textarea{width:100%;padding:11px 12px;border-radius:10px;border:1px solid var(--line);background:#101010;color:var(--cream);font-size:16px;font-family:inherit}
+input[type=checkbox],input[type=radio]{width:auto;margin-right:8px;transform:scale(1.2)}
+.chk{display:flex;align-items:flex-start;gap:4px;color:var(--cream);font-size:.9rem;margin:10px 0}
+button{font-family:inherit;font-size:1rem;border-radius:10px;border:1px solid var(--cream);background:var(--cream);color:#0d0d0d;padding:11px 16px;font-weight:700;cursor:pointer}
+button.sec{background:transparent;color:var(--cream)}
+button.link{background:none;border:none;color:var(--muted);text-decoration:underline;padding:4px;font-weight:400;font-size:.85rem}
+button:disabled{opacity:.5}
+button.full{width:100%}
+.row{display:flex;gap:8px;align-items:center}
+.row>*{flex:1}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:.85rem;background:#101010;color:var(--cream);font-weight:500}
+.chip.on{background:var(--cream);color:#0d0d0d;border-color:var(--cream)}
+.tag{display:inline-block;border-radius:999px;padding:2px 10px;font-size:.75rem;font-weight:700;letter-spacing:.04em}
+.tag.activo{background:var(--ok);color:#0d0d0d}.tag.pendiente{background:var(--warn);color:#0d0d0d}.tag.caducado,.tag.baja{background:var(--bad);color:#0d0d0d}
+.nav{position:fixed;left:0;right:0;bottom:0;background:#111;border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom);z-index:10}
+.nav button{flex:1;background:none;border:none;color:var(--muted);font-size:.72rem;padding:10px 2px 8px;font-weight:600;border-radius:0}
+.nav button span{display:block;font-size:1.25rem;margin-bottom:2px}
+.nav button.on{color:var(--cream)}
+.carnet{position:relative;border-radius:18px;padding:18px;background:linear-gradient(145deg,#1f1f1f,#0a0a0a);border:1px solid #3a3a3a;overflow:hidden;margin-bottom:14px}
+.carnet .crest{position:absolute;right:-40px;top:-40px;width:190px;opacity:.13;border-radius:50%}
+.carnet .club{font-size:.72rem;letter-spacing:.18em;color:var(--muted)}
+.carnet .name{font-size:1.45rem;font-weight:800;margin:6px 0 2px}
+.carnet .no{font-size:.9rem;color:var(--muted)}
+.carnet .qr{background:#fff;border-radius:10px;padding:8px;width:132px;margin-top:14px}
+.carnet .qr img{width:100%;display:block}
+.carnet .pts{position:absolute;right:18px;bottom:18px;text-align:right}
+.carnet .pts b{font-size:2rem;display:block;line-height:1}
+.banner{border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:.92rem}
+.banner.warn{background:#3a3016;border:1px solid var(--warn)}
+.banner.ok{background:#1d3320;border:1px solid var(--ok)}
+.banner.bad{background:#3a1d1a;border:1px solid var(--bad)}
+.list{list-style:none;margin:0;padding:0}
+.list li{padding:11px 0;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}
+.list li:last-child{border-bottom:none}
+.list .grow{flex:1;min-width:0}
+.match .date{font-size:.78rem;color:var(--muted)}
+.score{font-weight:800;font-size:1.1rem;white-space:nowrap}
+.logo{width:44px;height:44px;border-radius:10px;object-fit:cover;background:#222;display:flex;align-items:center;justify-content:center;font-weight:800;flex:none}
+.wheelbox{position:relative;width:280px;height:280px;margin:10px auto 16px}
+.wheelbox svg{width:100%;height:100%;transition:transform 4.5s cubic-bezier(.17,.67,.12,1)}
+.wheelbox .pointer{position:absolute;top:-6px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-top:24px solid var(--cream);z-index:2;filter:drop-shadow(0 2px 2px #000)}
+.big{font-size:2.2rem;font-weight:800;text-align:center}
+.goals{display:flex;align-items:center;justify-content:center;gap:12px;margin:12px 0}
+.goals input{width:70px;text-align:center;font-size:1.6rem;font-weight:800}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+.modal .in{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;max-width:440px;width:100%;max-height:90vh;overflow:auto}
+video{width:100%;border-radius:12px;background:#000}
+#toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--cream);color:#0d0d0d;padding:12px 18px;border-radius:12px;font-weight:700;z-index:60;display:none;max-width:90vw;text-align:center}
+#toast.err{background:var(--bad)}
+.subnav{display:flex;gap:6px;overflow-x:auto;margin-bottom:14px;padding-bottom:4px}
+.subnav .chip{white-space:nowrap}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.stats div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.stats b{display:block;font-size:1.4rem}
+.stats span{font-size:.72rem;color:var(--muted)}
+.hero{text-align:center;padding:24px 0 8px}
+.hero img{width:150px;border-radius:50%;margin-bottom:12px}
+.person{border:1px dashed var(--line);border-radius:12px;padding:12px;margin-bottom:10px}
+.center{text-align:center}
+.mt{margin-top:12px}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}
+</style>
+</head>
+<body>
+<div id="app"><div class="wrap hero"><img src="escudo.jpg" alt=""><p class="muted">Cargando…</p></div></div>
+<div id="toast"></div>
+<script>
+'use strict';
+const CFG = window.QT_CONFIG;
+const sb = supabase.createClient(CFG.url, CFG.key, {auth:{storageKey:'carnet-quinta'}});
+const APP_URL = location.origin + location.pathname;
+const $ = s => document.querySelector(s);
+const app = $('#app');
+const S = {user:null, cards:[], cur:null, teams:[], admin:false, tab:'carnet', atab:'resumen', settings:{}};
+
+/* ---------- utilidades ---------- */
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(msg, err){const t=$('#toast');t.textContent=msg;t.className=err?'err':'';t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',3500)}
+async function rpc(fn, args){const {data,error}=await sb.rpc(fn,args||{}); if(error) throw new Error(cleanErr(error.message)); return data}
+function cleanErr(m){return (m||'Error').replace(/^.*?ERROR:\s*/,'')}
+async function guard(fn){try{return await fn()}catch(e){toast(e.message||String(e),true)}}
+const fmtDate = d => new Date(d).toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short',timeZone:'Europe/Madrid'});
+const fmtTime = d => new Date(d).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit',timeZone:'Europe/Madrid'});
+const fmtDay = d => d ? new Date(d+'T12:00:00').toLocaleDateString('es-ES',{day:'numeric',month:'long',year:'numeric'}) : '';
+function qrImg(text, cell){const q=qrcode(0,'M');q.addData(text);q.make();return q.createDataURL(cell||6,2)}
+const cur = () => S.cards.find(c => c.id === S.cur) || S.cards[0];
+const statusTxt = s => ({activo:'ACTIVO',pendiente:'PENDIENTE DE PAGO',caducado:'CADUCADO',baja:'BAJA'}[s]||s);
+function modal(html){const m=document.createElement('div');m.className='modal';m.innerHTML='<div class="in">'+html+'</div>';m.addEventListener('click',e=>{if(e.target===m)closeModal()});document.body.appendChild(m);return m}
+function closeModal(){stopScan();document.querySelectorAll('.modal').forEach(m=>m.remove())}
+
+/* ---------- arranque ---------- */
+async function boot(){
+  if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+  const hash = location.hash;
+  if(hash.startsWith('#comercio')) return renderMerchantSignup();
+  const m = hash.match(/[#&]([cp])=([0-9a-f]+)/i);
+  if(m){sessionStorage.setItem('qt_code', m[1]+':'+m[2]); history.replaceState(null,'',location.pathname)}
+  const {data:{session}} = await sb.auth.getSession();
+  if(!session) return renderLogin();
+  S.user = session.user;
+  await loadAll();
+}
+async function loadAll(){
+  const [teams, cards, admin, sets] = await Promise.all([
+    sb.from('teams').select('id,name,category,is_flagship,sort,active').eq('active',true).order('sort').order('name'),
+    rpc('my_cards'), rpc('is_admin'), sb.from('settings').select('key,value')
+  ]);
+  S.teams = teams.data || []; S.cards = cards || []; S.admin = !!admin;
+  S.settings = Object.fromEntries((sets.data||[]).map(r=>[r.key,r.value]));
+  if(!S.cards.find(c=>c.id===S.cur)) S.cur = (S.cards[0]||{}).id;
+  if(!S.cards.length && !S.admin) return renderAlta();
+  if(!S.cards.length && S.admin && S.tab!=='admin') S.tab='admin';
+  render();
+  const code = sessionStorage.getItem('qt_code');
+  if(code && cur()){sessionStorage.removeItem('qt_code'); doScan(code)}
+}
+
+/* ---------- login por código al email ---------- */
+function renderLogin(){
+  app.innerHTML = `<div class="wrap"><div class="hero"><img src="escudo.jpg" alt="Escudo"><h1>Carnet de socio</h1><p class="muted">Quinta de Tui Futsal</p></div>
+  <div class="box"><h2>Entra o hazte socio</h2><p class="muted small">Te mandamos un código a tu email. Sin contraseñas.</p>
+  <label>Tu email</label><input id="em" type="email" autocomplete="email" inputmode="email" placeholder="tu@email.com">
+  <button class="full mt" id="b1">Enviarme el código</button>
+  <div id="step2" style="display:none"><label>Código que te ha llegado</label><input id="otp" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="123456">
+  <button class="full mt" id="b2">Entrar</button><p class="muted small">¿No te llega? Mira en spam o promociones.</p></div></div>
+  <p class="center"><a class="muted small" href="#comercio" onclick="setTimeout(boot)">¿Tienes un comercio? Únete al carnet</a></p></div>`;
+  $('#b1').onclick = () => guard(async()=>{
+    const email=$('#em').value.trim().toLowerCase(); if(!/^\S+@\S+\.\S+$/.test(email)) throw new Error('Revisa el email');
+    $('#b1').disabled=true;
+    const {error}=await sb.auth.signInWithOtp({email,options:{shouldCreateUser:true}});
+    $('#b1').disabled=false; if(error) throw new Error(error.message);
+    $('#step2').style.display='block'; $('#b1').textContent='Reenviar código'; $('#otp').focus(); toast('Código enviado');
+  });
+  $('#b2').onclick = () => guard(async()=>{
+    const {data,error}=await sb.auth.verifyOtp({email:$('#em').value.trim().toLowerCase(),token:$('#otp').value.trim(),type:'email'});
+    if(error) throw new Error('Código incorrecto o caducado');
+    S.user=data.user; await loadAll();
+  });
+}
+
+/* ---------- alta de socios ---------- */
+let altaPeople = [];
+async function renderAlta(extra){
+  const prefill = extra ? [] : await rpc('clubber_prefill').catch(()=>[]);
+  const pr = S.settings.precios || {individual:12,familiar:6,protector:[30,50]};
+  if(!altaPeople.length){
+    altaPeople = prefill.length ? prefill.map(p=>({first_name:p.first_name||'',last_name:p.last_name||'',birth_date:p.birth_date||'',relation:'jugador',teams:S.teams.filter(t=>p.team_name&&t.name.toLowerCase()===p.team_name.toLowerCase()).map(t=>t.id)}))
+                                : [{first_name:'',last_name:'',birth_date:'',relation:'familiar',teams:[]}];
+  }
+  const hasCards = S.cards.length>0;
+  app.innerHTML = `<div class="wrap"><div class="hero" style="padding-top:8px"><img src="escudo.jpg" style="width:90px"><h1>${hasCards?'Añadir carnets':'Hazte socio'}</h1></div>
+  ${prefill.length?`<div class="banner ok">Ya te teníamos en el club: hemos rellenado tus datos. Revísalos y confirma.</div>`:''}
+  <div class="box"><p class="muted small">Un carnet por persona. ${hasCards?'Cada carnet más de tu familia cuesta '+pr.familiar+' €.':'El primero cuesta '+pr.individual+' € al año y cada uno más de tu familia, '+pr.familiar+' €.'} Si es menor de 14 años, el alta la hace su padre o su madre.</p>
+  <div id="people"></div><button class="sec full" id="addp">+ Añadir otra persona de la familia</button></div>
+  ${hasCards?'':`<div class="box"><h3>Socio protector (opcional)</h3><p class="muted small">Si quieres ayudar más al club, tu carnet puede ser de protector. Saldrás en el muro de agradecimiento.</p>
+  <div class="chips" id="prot"><button class="chip on" data-v="">Normal</button>${(pr.protector||[]).map(v=>`<button class="chip" data-v="${v}">Protector ${v} €</button>`).join('')}</div></div>`}
+  <div class="box"><label>Teléfono móvil</label><input id="tel" type="tel" inputmode="tel" placeholder="600 000 000" value="${esc((prefill[0]||{}).phone||'')}">
+  <div class="chk"><input type="checkbox" id="cc"><span>Quiero recibir noticias, avisos y ventajas del club por email y en la app.</span></div>
+  <div class="chk"><input type="checkbox" id="pp"><span>He leído y acepto el tratamiento de mis datos por Quinta de Tui Futsal para gestionar el carnet de socio.</span></div>
+  <div id="total" class="big mt"></div>
+  <button class="full mt" id="go">Confirmar alta</button>
+  ${hasCards?'<button class="link full" onclick="altaPeople=[];render()">Cancelar</button>':'<button class="link full" onclick="logout()">Salir</button>'}</div></div>`;
+  let protector = '';
+  const draw = () => {
+    $('#people').innerHTML = altaPeople.map((p,i)=>`<div class="person"><div class="row"><b>Persona ${i+1}</b>${altaPeople.length>1?`<button class="link" style="flex:0" onclick="altaPeople.splice(${i},1);renderAltaKeep()">Quitar</button>`:''}</div>
+      <div class="grid2"><div><label>Nombre</label><input data-i="${i}" data-k="first_name" value="${esc(p.first_name)}"></div><div><label>Apellidos</label><input data-i="${i}" data-k="last_name" value="${esc(p.last_name)}"></div></div>
+      <div class="grid2"><div><label>Fecha de nacimiento</label><input type="date" data-i="${i}" data-k="birth_date" value="${esc(p.birth_date)}"></div>
+      <div><label>Relación con el club</label><select data-i="${i}" data-k="relation">${['jugador','familiar','aficionado'].map(r=>`<option ${p.relation===r?'selected':''}>${r}</option>`).join('')}</select></div></div>
+      <label>Equipos que sigue</label><div class="chips">${S.teams.map(t=>`<button class="chip ${p.teams.includes(t.id)?'on':''}" data-i="${i}" data-t="${t.id}">${esc(t.name)}</button>`).join('')||'<span class="muted small">Aún no hay equipos cargados</span>'}</div></div>`).join('');
+    $('#people').querySelectorAll('input,select').forEach(el=>el.oninput=()=>{altaPeople[+el.dataset.i][el.dataset.k]=el.value});
+    $('#people').querySelectorAll('[data-t]').forEach(el=>el.onclick=()=>{const p=altaPeople[+el.dataset.i],t=+el.dataset.t;p.teams=p.teams.includes(t)?p.teams.filter(x=>x!==t):[...p.teams,t];draw()});
+    const n=altaPeople.length; const first = hasCards?pr.familiar:(protector?+protector:pr.individual);
+    $('#total').textContent = (first + (n-1)*pr.familiar) + ' € / año';
+  };
+  window.renderAltaKeep = draw;
+  draw();
+  $('#addp').onclick = () => {altaPeople.push({first_name:'',last_name:(altaPeople[0]||{}).last_name||'',birth_date:'',relation:'jugador',teams:[]});draw()};
+  if($('#prot')) $('#prot').querySelectorAll('.chip').forEach(b=>b.onclick=()=>{protector=b.dataset.v;$('#prot').querySelectorAll('.chip').forEach(x=>x.classList.toggle('on',x===b));draw()});
+  $('#go').onclick = () => guard(async()=>{
+    if(!$('#pp').checked) throw new Error('Tienes que aceptar el tratamiento de datos');
+    const phone=$('#tel').value.trim();
+    const items = altaPeople.map(p=>({...p,phone}));
+    $('#go').disabled=true;
+    try{ await rpc('register_members',{p_items:items,p_consent:$('#cc').checked,p_protector:protector?+protector:null}); }
+    finally{ $('#go').disabled=false }
+    altaPeople=[]; S.tab='carnet'; await loadAll(); toast('¡Alta hecha!');
+  });
+}
+
+/* ---------- estructura principal ---------- */
+function render(){
+  const c = cur();
+  const tabs = [['carnet','🪪','Carnet'],['partidos','📅','Partidos'],['juegos','🎡','Juegos'],['comercios','🏪','Comercios'],['puntos','⭐','Puntos']];
+  if(S.admin) tabs.push(['admin','⚙️','Gestión']);
+  app.innerHTML = `<div class="top"><img src="escudo.jpg" alt=""><div class="t">QUINTA DE TUI<br><span class="muted small">Carnet de socio</span></div>
+    ${S.cards.length>1?`<select id="sel">${S.cards.map(x=>`<option value="${x.id}" ${x.id===c.id?'selected':''}>${esc(x.first_name)}</option>`).join('')}</select>`:''}</div>
+    <div class="wrap" id="main"></div>
+    <nav class="nav">${tabs.map(t=>`<button class="${S.tab===t[0]?'on':''}" data-tab="${t[0]}"><span>${t[1]}</span>${t[2]}</button>`).join('')}</nav>`;
+  if($('#sel')) $('#sel').onchange = e => {S.cur=e.target.value; render()};
+  document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;render();scrollTo(0,0)});
+  const v = {carnet:viewCarnet,partidos:viewPartidos,juegos:viewJuegos,comercios:viewComercios,puntos:viewPuntos,admin:viewAdmin}[S.tab];
+  if(!c && S.tab!=='admin') return viewNoCard();
+  guard(()=>v($('#main'), c));
+}
+function viewNoCard(){ $('#main').innerHTML=`<div class="box center"><p>Todavía no tienes carnet.</p><button onclick="renderAlta()">Hacerme socio</button></div>` }
+async function logout(){await sb.auth.signOut(); location.reload()}
+async function refreshCards(){S.cards = await rpc('my_cards')}
+
+/* ---------- Carnet ---------- */
+async function viewCarnet(el, c){
+  const pago = (S.settings.pago||{}).texto || 'El club te indicará cómo hacer el pago. En cuanto lo recibamos, tu carnet se activa.';
+  const days = c.paid_until ? Math.ceil((new Date(c.paid_until+'T23:59:59') - new Date())/864e5) : null;
+  el.innerHTML = `
+  ${c.birthday?`<div class="banner ok">🎂 ¡Feliz cumpleaños, ${esc(c.first_name)}! Te hemos regalado ${(S.settings.puntos||{}).cumple||25} puntos.</div>`:''}
+  ${c.status==='pendiente'?`<div class="banner warn"><b>Carnet pendiente de pago: ${(+c.price).toFixed(0)} €</b><br>${esc(pago).replace(/\{numero\}/g,c.member_no)}</div>`:''}
+  ${c.status==='caducado'?`<div class="banner bad"><b>Tu carnet ha caducado.</b> Renuévalo para no perder tus puntos ni tus ventajas.<br>${esc(pago).replace(/\{numero\}/g,c.member_no)}</div>`:''}
+  ${c.status==='activo'&&days!==null&&days<=30?`<div class="banner warn">Tu carnet caduca en ${days} día${days===1?'':'s'}. Renuévalo para seguir con tus ventajas.<br>${esc(pago).replace(/\{numero\}/g,c.member_no)}</div>`:''}
+  <div class="carnet" style="${c.status==='activo'?'':'filter:grayscale(1);opacity:.75'}"><img class="crest" src="escudo.jpg" alt="">
+    <div class="club">QUINTA DE TUI FUTSAL · ${c.is_protector?'SOCIO PROTECTOR':'SOCIO'}</div>
+    <div class="name">${esc(c.first_name)} ${esc(c.last_name)}</div>
+    <div class="no">Nº ${c.member_no} · <span class="tag ${c.status}">${statusTxt(c.status)}</span></div>
+    ${c.paid_until?`<div class="muted small" style="margin-top:4px">Válido hasta el ${fmtDay(c.paid_until)}</div>`:''}
+    <div class="qr"><img src="${qrImg('QUINTA-SOCIO-'+c.member_no,5)}" alt="QR del carnet"></div>
+    <div class="pts"><b>${c.points}</b><span class="muted small">puntos</span></div>
+  </div>
+  <button class="full" onclick="openScanner()">📷 Escanear QR de comercio o partido</button>
+  <p class="muted small center">Enseña este carnet en los comercios adheridos para tu descuento y escanea su QR para sumar puntos.</p>
+  <div class="box"><h3>Tus ventajas</h3><ul class="list small">
+   <li>🏪 Descuentos en los comercios adheridos</li><li>⚽ ${(S.settings.club||{}).campus_descuento||10}% de descuento en el campus Toñín Martín</li>
+   <li>👕 Descuento en chándal, mochilas y prendas oficiales</li><li>🛍️ Preventa de merchandising del club</li>
+   <li>🥤 Precio de socio en la cantina</li><li>🎡 Juegos, porra y premios con tus puntos</li><li>🏆 Prioridad en torneos y eventos</li></ul></div>
+  <div class="box"><button class="sec full" onclick="altaPeople=[];renderAlta(true)">+ Añadir carnet a mi familia (${(S.settings.precios||{}).familiar||6} €)</button></div>
+  <p class="center"><button class="link" onclick="logout()">Cerrar sesión</button> ${S.admin?'':'<button class="link" onclick="claimAdmin()">Soy administrador</button>'}</p>`;
+}
+async function claimAdmin(){guard(async()=>{const ok=await rpc('claim_first_admin'); if(ok){toast('Ya eres administrador');S.admin=true;S.tab='admin';render()} else toast('Ya hay un administrador. Pídele acceso.',true)})}
+
+/* ---------- Escáner QR ---------- */
+let scanStream=null, scanRAF=null;
+function openScanner(){
+  const c=cur(); if(c.status!=='activo') return toast('Tu carnet tiene que estar activo para sumar puntos',true);
+  modal(`<h2>Escanear QR</h2><video id="vid" playsinline muted></video><canvas id="cv" style="display:none"></canvas>
+   <p class="muted small">Apunta al QR del mostrador o del cartel del partido.</p>
+   <label>¿No funciona la cámara? Escribe el código</label><div class="row"><input id="manual" placeholder="código"><button style="flex:0" onclick="manualScan()">OK</button></div>
+   <button class="sec full mt" onclick="closeModal()">Cerrar</button>`);
+  navigator.mediaDevices?.getUserMedia({video:{facingMode:'environment'}}).then(st=>{
+    scanStream=st; const v=$('#vid'); if(!v) return stopScan(); v.srcObject=st; v.play();
+    const cv=$('#cv'), ctx=cv.getContext('2d',{willReadFrequently:true});
+    const tick=()=>{ if(!scanStream) return;
+      if(v.readyState===v.HAVE_ENOUGH_DATA){cv.width=v.videoWidth;cv.height=v.videoHeight;ctx.drawImage(v,0,0);
+        const r=jsQR(ctx.getImageData(0,0,cv.width,cv.height).data,cv.width,cv.height);
+        if(r&&r.data){const m=r.data.match(/[#?&]([cp])=([0-9a-f]+)/i); if(m){closeModal();return doScan(m[1]+':'+m[2])}}}
+      scanRAF=requestAnimationFrame(tick)};
+    tick();
+  }).catch(()=>toast('No se pudo abrir la cámara. Escribe el código.',true));
+}
+function stopScan(){if(scanStream){scanStream.getTracks().forEach(t=>t.stop());scanStream=null}cancelAnimationFrame(scanRAF)}
+function manualScan(){const v=$('#manual').value.trim();closeModal();doScan(v.includes(':')?v:'c:'+v)}
+async function doScan(code){
+  const c=cur(); if(!c) return;
+  guard(async()=>{const r=await rpc('scan_code',{p_member:c.id,p_code:code});
+    modal(`<div class="center"><div class="big">+${r.points}</div><p>${esc(r.text)}</p><button class="full" onclick="closeModal()">¡Genial!</button></div>`);
+    await refreshCards(); render();});
+}
+
+/* ---------- Partidos ---------- */
+async function viewPartidos(el, c){
+  const ids = c.teams||[];
+  el.innerHTML = `<div class="box"><h3>Equipos que sigues</h3><div class="chips" id="tch">${S.teams.map(t=>`<button class="chip ${ids.includes(t.id)?'on':''}" data-t="${t.id}">${esc(t.name)}</button>`).join('')||'<span class="muted small">Todavía no hay equipos cargados.</span>'}</div></div><div id="ml"><p class="muted">Cargando…</p></div>`;
+  el.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>guard(async()=>{const t=+b.dataset.t; const n=ids.includes(t)?ids.filter(x=>x!==t):[...ids,t];
+    await rpc('set_member_teams',{p_member:c.id,p_teams:n}); c.teams=n; render()}));
+  if(!ids.length){$('#ml').innerHTML='<p class="muted center">Elige uno o varios equipos para ver su calendario y sus resultados.</p>';return}
+  const from=new Date(Date.now()-21*864e5).toISOString(), to=new Date(Date.now()+35*864e5).toISOString();
+  const {data,error}=await sb.from('matches').select('id,team_id,starts_at,is_home,rival,venue,goals_for,goals_against,finished').in('team_id',ids).gte('starts_at',from).lte('starts_at',to).order('starts_at');
+  if(error) throw error;
+  const tn=Object.fromEntries(S.teams.map(t=>[t.id,t.name]));
+  const next=data.filter(m=>!m.finished), past=data.filter(m=>m.finished).reverse();
+  const li=m=>`<li class="match"><div class="grow"><div class="date">${fmtDate(m.starts_at)} · ${fmtTime(m.starts_at)} · ${esc(tn[m.team_id])}</div>
+     <div><b>${m.is_home?'Quinta':esc(m.rival)}</b> - <b>${m.is_home?esc(m.rival):'Quinta'}</b></div>${m.venue?`<div class="muted small">${esc(m.venue)}</div>`:''}</div>
+     ${m.finished?`<div class="score">${m.is_home?m.goals_for:m.goals_against} - ${m.is_home?m.goals_against:m.goals_for}</div>`:`<span class="tag" style="border:1px solid var(--line)">${m.is_home?'CASA':'FUERA'}</span>`}</li>`;
+  $('#ml').innerHTML = `<div class="box"><h3>Próximos partidos</h3>${next.length?`<ul class="list">${next.map(li).join('')}</ul>`:'<p class="muted small">El calendario se publica el miércoles.</p>'}</div>
+   <div class="box"><h3>Resultados</h3>${past.length?`<ul class="list">${past.map(li).join('')}</ul>`:'<p class="muted small">Sin resultados recientes.</p>'}</div>
+   <p class="muted small center">En los partidos en casa, escanea el cartel del pabellón para sumar puntos. El del senior preferente vale doble.</p>`;
+}
+
+/* ---------- Juegos: ruleta y porra ---------- */
+async function viewJuegos(el, c){
+  const segs = ((S.settings.puntos||{}).ruleta||[[1],[2],[3],[5],[10],[25]]).map(s=>s[0]);
+  el.innerHTML = `<div class="box center"><h2>Ruleta diaria</h2><p class="muted small">Una tirada al día. Si tiras 7 días seguidos, la del séptimo vale doble. Y una vez por semana, un día que nadie sabe, alguien se lleva un regalo.</p>
+    <div class="wheelbox"><div class="pointer"></div>${wheelSVG(segs)}</div>
+    <button class="full" id="spin" ${c.spun_today||c.status!=='activo'?'disabled':''}>${c.spun_today?'Vuelve mañana':c.status!=='activo'?'Activa tu carnet para jugar':'¡Tirar!'}</button></div>
+    <div class="box" id="porra"><h2>Porra del primer equipo</h2><p class="muted">Cargando…</p></div>
+    <div class="box" id="rank"></div>`;
+  $('#spin').onclick = () => guard(async()=>{
+    $('#spin').disabled=true;
+    const r = await rpc('spin_wheel',{p_member:c.id});
+    const n=segs.length, a=360/n, target = 360*6 + (360 - (r.segment*a + a/2));
+    const w=$('.wheelbox svg'); w.style.transform=`rotate(${target}deg)`;
+    setTimeout(async()=>{
+      modal(`<div class="center"><div class="big">+${r.points}</div><p>${r.streak_bonus?'¡Racha de 7 días: puntos dobles!':'puntos para tu carnet'}</p>
+        ${r.gift?`<div class="banner ok"><b>🎁 ¡TE HA TOCADO EL REGALO DE LA SEMANA!</b><br>${esc(r.gift)}${r.sponsor?' · gracias a '+esc(r.sponsor):''}<br><span class="small">El club se pondrá en contacto contigo para dártelo.</span></div>`:''}
+        <button class="full" onclick="closeModal()">¡Bien!</button></div>`);
+      await refreshCards();
+    },4700);
+  });
+  const p = await rpc('porra_current');
+  if(!p){$('#porra').innerHTML='<h2>Porra del primer equipo</h2><p class="muted small">No hay partido próximo del primer equipo cargado.</p>'}
+  else{
+    const mine = await rpc('my_prediction',{p_member:c.id,p_match:p.id});
+    const pts=S.settings.puntos||{};
+    $('#porra').innerHTML = `<h2>Porra del primer equipo</h2><p class="muted small">${fmtDate(p.starts_at)} · ${fmtTime(p.starts_at)}${p.venue?' · '+esc(p.venue):''}</p>
+      <div class="goals"><div class="center"><div class="small">${p.is_home?'Quinta':esc(p.rival)}</div><input id="g1" type="number" min="0" max="30" inputmode="numeric" value="${mine?(p.is_home?mine.goals_for:mine.goals_against):''}"></div><b>-</b>
+      <div class="center"><div class="small">${p.is_home?esc(p.rival):'Quinta'}</div><input id="g2" type="number" min="0" max="30" inputmode="numeric" value="${mine?(p.is_home?mine.goals_against:mine.goals_for):''}"></div></div>
+      <button class="full" id="pb" ${c.status!=='activo'?'disabled':''}>${mine?'Cambiar mi pronóstico':'Guardar pronóstico'}</button>
+      <p class="muted small">Ganador: ${pts.porra_ganador||3} puntos. Resultado exacto: ${pts.porra_exacto||10} puntos. Se cierra al empezar el partido. Algunas semanas, sin avisar, hay premio sorpresa entre los que aciertan el resultado exacto.</p>`;
+    $('#pb').onclick=()=>guard(async()=>{const a=+$('#g1').value,b=+$('#g2').value; if($('#g1').value===''||$('#g2').value==='') throw new Error('Pon los dos marcadores');
+      await rpc('predict',{p_member:c.id,p_match:p.id,p_for:p.is_home?a:b,p_against:p.is_home?b:a}); toast('Pronóstico guardado'); $('#pb').textContent='Cambiar mi pronóstico'});
+  }
+  const rk = await rpc('porra_ranking');
+  $('#rank').innerHTML = `<h3>Ranking de la porra</h3>${rk.length?`<table>${rk.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.name)}</td><td class="muted small">${r.exactos} exactos</td><td><b>${r.pts}</b></td></tr>`).join('')}</table>`:'<p class="muted small">Todavía no hay puntos esta temporada.</p>'}`;
+}
+function wheelSVG(segs){
+  const n=segs.length, r=140, a=2*Math.PI/n; let s='';
+  segs.forEach((v,i)=>{const a0=i*a-Math.PI/2, a1=a0+a;
+    const x0=r+r*Math.cos(a0), y0=r+r*Math.sin(a0), x1=r+r*Math.cos(a1), y1=r+r*Math.sin(a1);
+    const am=a0+a/2, tx=r+r*.66*Math.cos(am), ty=r+r*.66*Math.sin(am);
+    s+=`<path d="M${r},${r} L${x0},${y0} A${r},${r} 0 0 1 ${x1},${y1} Z" fill="${i%2?'#e8e0cc':'#1c1c1c'}" stroke="#555"/>
+        <text x="${tx}" y="${ty}" fill="${i%2?'#0d0d0d':'#e8e0cc'}" font-size="22" font-weight="800" text-anchor="middle" dominant-baseline="middle" transform="rotate(${am*180/Math.PI+90} ${tx} ${ty})">+${v}</text>`});
+  return `<svg viewBox="0 0 280 280">${s}<circle cx="140" cy="140" r="26" fill="#0d0d0d" stroke="#e8e0cc" stroke-width="3"/></svg>`;
+}
+
+/* ---------- Comercios ---------- */
+async function viewComercios(el){
+  const {data,error}=await sb.from('merchants').select('id,name,category,discount,address,phone,web,logo_url').order('name');
+  if(error) throw error;
+  el.innerHTML = `<h2>Comercios con descuento</h2><p class="muted small">Enseña tu carnet al pagar y escanea el QR del mostrador: sumas ${(S.settings.puntos||{}).comercio||15} puntos (una vez al día por comercio).</p>
+   <button class="full" onclick="openScanner()">📷 Escanear QR del comercio</button>
+   <div class="box mt">${data.length?`<ul class="list">${data.map(m=>`<li>${m.logo_url?`<img class="logo" src="${esc(m.logo_url)}" alt="">`:`<div class="logo">${esc(m.name[0]||'')}</div>`}
+     <div class="grow"><b>${esc(m.name)}</b>${m.category?` <span class="muted small">· ${esc(m.category)}</span>`:''}<div>${esc(m.discount)}</div>
+     <div class="muted small">${esc(m.address||'')}${m.phone?' · <a href="tel:'+esc(m.phone)+'">'+esc(m.phone)+'</a>':''}</div></div></li>`).join('')}</ul>`:'<p class="muted">Pronto habrá comercios aquí.</p>'}</div>
+   <p class="center"><a class="muted small" href="#comercio" onclick="setTimeout(boot)">¿Conoces un comercio que quiera unirse?</a></p>`;
+}
+
+/* ---------- Puntos y premios ---------- */
+async function viewPuntos(el, c){
+  const [pz, led, rd] = await Promise.all([
+    sb.from('prizes').select('id,name,description,cost_points,stock,sponsor,image_url').eq('active',true).order('cost_points'),
+    sb.from('points_ledger').select('delta,reason,created_at').eq('member_id',c.id).order('created_at',{ascending:false}).limit(40),
+    sb.from('redemptions').select('id,status,created_at,prizes(name)').eq('member_id',c.id).order('created_at',{ascending:false}).limit(20)]);
+  el.innerHTML = `<div class="box center"><div class="muted">Tienes</div><div class="big">${c.points}</div><div class="muted">puntos</div></div>
+   <div class="box"><h3>Premios</h3>${(pz.data||[]).length?`<ul class="list">${pz.data.map(p=>`<li><div class="grow"><b>${esc(p.name)}</b>${p.sponsor?` <span class="muted small">· ${esc(p.sponsor)}</span>`:''}
+     ${p.description?`<div class="muted small">${esc(p.description)}</div>`:''}${p.stock!=null?`<div class="muted small">Quedan ${p.stock}</div>`:''}</div>
+     <button style="flex:0;white-space:nowrap" ${c.points<p.cost_points||c.status!=='activo'||p.stock===0?'disabled':''} onclick="redeem(${p.id},'${esc(p.name).replace(/'/g,'')}',${p.cost_points})">${p.cost_points} pts</button></li>`).join('')}</ul>`:'<p class="muted small">Pronto habrá premios.</p>'}</div>
+   ${(rd.data||[]).length?`<div class="box"><h3>Tus canjes</h3><ul class="list small">${rd.data.map(r=>`<li><div class="grow">${esc(r.prizes?.name)}</div><span class="tag ${r.status==='entregado'?'activo':'pendiente'}">${r.status.toUpperCase()}</span></li>`).join('')}</ul><p class="muted small">Los premios pendientes los recoges en el club enseñando tu carnet.</p></div>`:''}
+   <div class="box"><h3>Movimientos</h3>${(led.data||[]).length?`<ul class="list small">${led.data.map(l=>`<li><div class="grow">${esc(l.reason)}<div class="muted small">${fmtDate(l.created_at)}</div></div><b>${l.delta>0?'+':''}${l.delta}</b></li>`).join('')}</ul>`:'<p class="muted small">Aún no tienes movimientos. ¡Tira de la ruleta!</p>'}</div>`;
+}
+function redeem(id, name, cost){
+  modal(`<h2>¿Canjear?</h2><p>${esc(name)} por <b>${cost} puntos</b>.</p><div class="row"><button class="sec" onclick="closeModal()">No</button><button id="okr">Sí, canjear</button></div>`);
+  $('#okr').onclick=()=>guard(async()=>{await rpc('redeem_prize',{p_member:cur().id,p_prize:id});closeModal();toast('¡Canjeado! Recógelo en el club.');await refreshCards();render()});
+}
+
+/* ---------- Alta de comercios (pública) ---------- */
+function renderMerchantSignup(){
+  document.body.style.paddingBottom='0';
+  app.innerHTML = `<div class="wrap"><div class="hero"><img src="escudo.jpg" alt=""><h1>Únete al carnet de socio</h1><p class="muted">Quinta de Tui Futsal</p></div>
+  <div class="box"><h2>¿Qué gana tu comercio?</h2><ul class="list">
+   <li>👥 Clientes nuevos: cientos de familias del club, de Tui y alrededores, con un motivo para comprarte a ti.</li>
+   <li>📱 Tu logo en la app: sale en los juegos y los puzzles que los socios hacen cada día.</li>
+   <li>📊 Resultados medibles: cada mes te enviamos cuántos socios han pasado por tu tienda.</li>
+   <li>⚽ Apoyas al deporte base: un club sin ánimo de lucro con 18 equipos, donde juegan todos.</li></ul>
+   <p class="muted small">Tú solo pones un descuento para socios y un QR en el mostrador que te damos nosotros. Sin cuotas.</p></div>
+  <div class="box" id="mf"><h2>Apúntate</h2>
+   <label>Nombre del comercio *</label><input id="m_name"><label>Tipo de negocio</label><input id="m_cat" placeholder="Cafetería, taller, ropa…">
+   <label>Descuento o ventaja para socios *</label><textarea id="m_disc" rows="2" placeholder="Ej.: 10% en toda la tienda"></textarea>
+   <label>Dirección</label><input id="m_addr"><div class="grid2"><div><label>Teléfono</label><input id="m_tel" type="tel"></div><div><label>Web o Instagram</label><input id="m_web"></div></div>
+   <label>Persona de contacto</label><input id="m_cn"><label>Email de contacto *</label><input id="m_em" type="email">
+   <button class="full mt" id="m_go">Enviar solicitud</button><p class="muted small">El club revisa la solicitud y te avisa. Tus datos solo se usan para gestionar tu participación en el carnet.</p></div>
+  <p class="center"><a class="muted small" href="./" onclick="location.hash='';location.reload()">Ir al carnet de socio</a></p></div>`;
+  $('#m_go').onclick=()=>guard(async()=>{
+    const v=id=>$(id).value.trim();
+    await rpc('merchant_apply',{p:{name:v('#m_name'),category:v('#m_cat'),discount:v('#m_disc'),address:v('#m_addr'),phone:v('#m_tel'),web:v('#m_web'),contact_name:v('#m_cn'),contact_email:v('#m_em')}});
+    $('#mf').innerHTML='<div class="center"><div class="big">¡Gracias!</div><p>Hemos recibido tu solicitud. Te escribiremos en cuanto la revisemos.</p></div>';
+  });
+}
+
+/* ======================= PANEL DE GESTIÓN ======================= */
+async function viewAdmin(el){
+  const subs=[['resumen','Resumen'],['socios','Socios'],['partidos','Equipos y partidos'],['comercios','Comercios'],['premios','Premios'],['sorpresas','Sorpresas'],['carteles','Carteles'],['ajustes','Ajustes']];
+  el.innerHTML = `<div class="subnav">${subs.map(s=>`<button class="chip ${S.atab===s[0]?'on':''}" data-a="${s[0]}">${s[1]}</button>`).join('')}</div><div id="adm"><p class="muted">Cargando…</p></div>`;
+  el.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{S.atab=b.dataset.a;render()});
+  const box=$('#adm');
+  await ({resumen:aResumen,socios:aSocios,partidos:aPartidos,comercios:aComercios,premios:aPremios,sorpresas:aSorpresas,carteles:aCarteles,ajustes:aAjustes}[S.atab])(box);
+}
+async function aResumen(b){
+  const o=await rpc('admin_overview');
+  b.innerHTML=`<div class="stats"><div><b>${o.activos}</b><span>socios activos</span></div><div><b>${o.pendientes}</b><span>pendientes de pago</span></div><div><b>${o.caducan_30}</b><span>caducan en 30 días</span></div>
+   <div><b>${o.comercios_pendientes}</b><span>comercios por aprobar</span></div><div><b>${o.canjes_pendientes}</b><span>premios por entregar</span></div><div><b>${(+o.ingresos).toFixed(0)} €</b><span>en carnets activos</span></div></div>
+   <div class="box"><h3>Enlaces para compartir</h3>
+   <p class="small">Alta de socios:<br><b>${esc(APP_URL)}</b></p><button class="sec" onclick="copy('${esc(APP_URL)}')">Copiar</button>
+   <p class="small mt">Alta de comercios:<br><b>${esc(APP_URL)}#comercio</b></p><div class="row"><button class="sec" onclick="copy('${esc(APP_URL)}#comercio')">Copiar</button><button class="sec" onclick="printQR('${esc(APP_URL)}#comercio','Únete al carnet de socio','Escanea para apuntar tu comercio')">QR para imprimir</button></div></div>`;
+}
+function copy(t){navigator.clipboard?.writeText(t).then(()=>toast('Copiado'))}
+
+async function aSocios(b, q){
+  q=q||'';
+  const list=await rpc('admin_members',{p_search:q});
+  b.innerHTML=`<div class="row"><input id="q" placeholder="Buscar por nombre, email, teléfono o nº" value="${esc(q)}"><button style="flex:0" id="qb">Buscar</button></div>
+   <p class="muted small">Cuando recibas el pago, pulsa Activar: el carnet queda activo un año.</p>
+   <div class="box"><ul class="list">${list.map(m=>`<li><div class="grow"><b>${esc(m.first_name)} ${esc(m.last_name)}</b> <span class="muted small">nº ${m.member_no}</span> <span class="tag ${m.status}">${m.status.toUpperCase()}</span>${m.is_protector?' <span class="tag" style="border:1px solid var(--cream)">PROTECTOR</span>':''}
+     <div class="muted small">${esc(m.email||'')} ${esc(m.phone||'')} · ${(+m.price).toFixed(0)} € · ${m.points} pts${m.paid_until?' · hasta '+fmtDay(m.paid_until):''}</div><div class="muted small">${esc(m.teams||'')}</div></div>
+     <div style="display:flex;flex-direction:column;gap:4px;flex:none"><button onclick="actMember('${m.id}')">${m.status==='pendiente'?'Activar':'Renovar'}</button><button class="sec" onclick="addPts('${m.id}')">± pts</button></div></li>`).join('')||'<li class="muted">Sin socios</li>'}</ul></div>`;
+  $('#qb').onclick=()=>aSocios(b,$('#q').value.trim()); $('#q').onkeydown=e=>{if(e.key==='Enter')aSocios(b,$('#q').value.trim())};
+}
+function actMember(id){guard(async()=>{await rpc('admin_activate',{p_member:id,p_months:12});toast('Carnet activado 1 año');aSocios($('#adm'),($('#q')||{}).value||'')})}
+function addPts(id){
+  modal(`<h3>Sumar o restar puntos</h3><label>Puntos (negativo para restar)</label><input id="pd" type="number" inputmode="numeric"><label>Motivo</label><input id="pr" placeholder="Ej.: participación en el torneo">
+   <div class="row mt"><button class="sec" onclick="closeModal()">Cancelar</button><button id="pok">Guardar</button></div>`);
+  $('#pok').onclick=()=>guard(async()=>{await rpc('admin_add_points',{p_member:id,p_delta:+$('#pd').value,p_reason:$('#pr').value});closeModal();toast('Hecho');aSocios($('#adm'))});
+}
+
+async function aPartidos(b){
+  const {data:teams}=await sb.from('teams').select('id,name,category,federation_url,is_flagship,sort,active').order('sort').order('name');
+  const from=new Date(Date.now()-14*864e5).toISOString();
+  const {data:ms}=await sb.from('matches').select('id,team_id,starts_at,is_home,rival,venue,goals_for,goals_against,finished').gte('starts_at',from).order('starts_at').limit(200);
+  const tn=Object.fromEntries((teams||[]).map(t=>[t.id,t.name]));
+  b.innerHTML=`<div class="box"><h3>Equipos</h3><ul class="list small">${(teams||[]).map(t=>`<li><div class="grow"><b>${esc(t.name)}</b> ${t.is_flagship?'<span class="tag activo">PRIMER EQUIPO</span>':''} <span class="muted">${esc(t.category||'')}</span></div>
+     <button class="sec" style="flex:0" onclick="toggleTeam(${t.id},${!t.active})">${t.active?'Ocultar':'Mostrar'}</button></li>`).join('')||'<li class="muted">Añade los 18 equipos aquí.</li>'}</ul>
+     <label>Nuevo equipo</label><div class="grid2"><input id="tn" placeholder="Nombre (ej.: Alevín A)"><input id="tc" placeholder="Categoría"></div>
+     <div class="chk"><input type="checkbox" id="tf"><span>Es el primer equipo (senior preferente): porra y puntos dobles</span></div><button id="tadd">Añadir equipo</button></div>
+   <div class="box"><h3>Nuevo partido</h3><p class="muted small">Más adelante se cargarán solos desde la Federación. Mientras, se pueden meter aquí.</p>
+     <label>Equipo</label><select id="mt">${(teams||[]).map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select>
+     <div class="grid2"><div><label>Fecha y hora</label><input id="md" type="datetime-local"></div><div><label>Rival</label><input id="mr"></div></div>
+     <div class="grid2"><div><label>Pabellón</label><input id="mv"></div><div><label>&nbsp;</label><div class="chk"><input type="checkbox" id="mh" checked><span>En casa</span></div></div></div>
+     <button id="madd">Añadir partido</button></div>
+   <div class="box"><h3>Partidos y resultados</h3><p class="muted small">Goles de Quinta primero. Al guardar un resultado se reparten solos los puntos de la porra.</p>
+     <ul class="list small">${(ms||[]).map(m=>`<li><div class="grow"><div class="muted">${fmtDate(m.starts_at)} ${fmtTime(m.starts_at)} · ${esc(tn[m.team_id])} · ${m.is_home?'casa':'fuera'}</div><b>vs ${esc(m.rival)}</b></div>
+       ${m.finished?`<span class="score">${m.goals_for}-${m.goals_against}</span>`:`<input style="width:52px" id="gf${m.id}" inputmode="numeric"><input style="width:52px" id="ga${m.id}" inputmode="numeric"><button style="flex:0" onclick="saveRes(${m.id})">OK</button>`}</li>`).join('')||'<li class="muted">Sin partidos</li>'}</ul></div>`;
+  $('#tadd').onclick=()=>guard(async()=>{const n=$('#tn').value.trim(); if(!n) throw new Error('Pon el nombre');
+    const {error}=await sb.from('teams').insert({name:n,category:$('#tc').value.trim()||null,is_flagship:$('#tf').checked,sort:(teams||[]).length}); if(error) throw error; await reloadTeams(); aPartidos(b)});
+  $('#madd').onclick=()=>guard(async()=>{const d=$('#md').value, r=$('#mr').value.trim(); if(!d||!r) throw new Error('Falta fecha o rival');
+    const {error}=await sb.from('matches').insert({team_id:+$('#mt').value,starts_at:new Date(d).toISOString(),rival:r,venue:$('#mv').value.trim()||null,is_home:$('#mh').checked}); if(error) throw error; toast('Partido añadido'); aPartidos(b)});
+}
+async function reloadTeams(){const {data}=await sb.from('teams').select('id,name,category,is_flagship,sort,active').eq('active',true).order('sort').order('name');S.teams=data||[]}
+function toggleTeam(id,a){guard(async()=>{const {error}=await sb.from('teams').update({active:a}).eq('id',id);if(error)throw error;await reloadTeams();aPartidos($('#adm'))})}
+function saveRes(id){guard(async()=>{const f=$('#gf'+id).value,a=$('#ga'+id).value; if(f===''||a==='') throw new Error('Pon los dos marcadores');
+  const {error}=await sb.from('matches').update({goals_for:+f,goals_against:+a,finished:true}).eq('id',id); if(error) throw error; toast('Resultado guardado'); aPartidos($('#adm'))})}
+
+async function aComercios(b){
+  const list=await rpc('admin_merchants');
+  b.innerHTML=`<div class="box"><p class="small">Los comercios se apuntan solos desde <b>${esc(APP_URL)}#comercio</b>. Aquí los apruebas y les imprimes su QR de mostrador.</p></div>
+   <div class="box"><ul class="list">${list.map(m=>`<li><div class="grow"><b>${esc(m.name)}</b> ${m.approved?(m.active?'<span class="tag activo">ACTIVO</span>':'<span class="tag baja">PAUSADO</span>'):'<span class="tag pendiente">POR APROBAR</span>'}
+     <div class="small">${esc(m.discount)}</div><div class="muted small">${esc(m.contact_name||'')} ${esc(m.contact_email||'')} ${esc(m.phone||'')}</div>
+     <div class="muted small">Visitas de socios (30 días): ${m.visitas_30d}</div>
+     <label class="small">Logo (enlace a imagen)</label><div class="row"><input id="lg${m.id}" value="${esc(m.logo_url||'')}" placeholder="https://…"><button class="sec" style="flex:0" onclick="saveLogo(${m.id})">OK</button></div></div>
+     <div style="display:flex;flex-direction:column;gap:4px;flex:none">${m.approved?`<button onclick="printQR('${esc(APP_URL)}#c=${m.scan_code}','${esc(m.name).replace(/'/g,'')}','Socio: escanea al pagar y suma puntos')">QR</button><button class="sec" onclick="merchSet(${m.id},{active:${!m.active}})">${m.active?'Pausar':'Reactivar'}</button>`:`<button onclick="merchSet(${m.id},{approved:true})">Aprobar</button><button class="sec" onclick="merchDel(${m.id})">Rechazar</button>`}</div></li>`).join('')||'<li class="muted">Sin comercios</li>'}</ul></div>
+   <div class="box"><h3>Añadir comercio a mano</h3><p class="muted small">Para los 9 que ya tenéis: rellena el formulario de alta y apruébalo aquí.</p><a href="#comercio" onclick="setTimeout(boot)"><button class="sec">Abrir formulario</button></a></div>`;
+}
+function merchSet(id,patch){guard(async()=>{const {error}=await sb.from('merchants').update(patch).eq('id',id);if(error)throw error;aComercios($('#adm'))})}
+function merchDel(id){guard(async()=>{const {error}=await sb.from('merchants').delete().eq('id',id);if(error)throw error;aComercios($('#adm'))})}
+function saveLogo(id){merchSet(id,{logo_url:$('#lg'+id).value.trim()||null})}
+
+async function aPremios(b){
+  const [{data:pz}, rd] = await Promise.all([sb.from('prizes').select('id,name,description,cost_points,stock,sponsor,active').order('cost_points'), rpc('admin_redemptions')]);
+  b.innerHTML=`<div class="box"><h3>Premios por entregar</h3><ul class="list small">${rd.filter(r=>r.status==='pendiente').map(r=>`<li><div class="grow"><b>${esc(r.prize)}</b><div class="muted">${esc(r.socio)} · nº ${r.member_no} · ${fmtDate(r.created_at)}</div></div><button style="flex:0" onclick="deliver(${r.id})">Entregado</button></li>`).join('')||'<li class="muted">Nada pendiente</li>'}</ul></div>
+   <div class="box"><h3>Catálogo</h3><ul class="list small">${(pz||[]).map(p=>`<li><div class="grow"><b>${esc(p.name)}</b> · ${p.cost_points} pts${p.stock!=null?' · quedan '+p.stock:''}${p.sponsor?' · '+esc(p.sponsor):''}</div><button class="sec" style="flex:0" onclick="prizeSet(${p.id},{active:${!p.active}})">${p.active?'Ocultar':'Mostrar'}</button></li>`).join('')||'<li class="muted">Sin premios</li>'}</ul>
+   <h3 class="mt">Nuevo premio</h3><label>Nombre</label><input id="pn" placeholder="Bufanda del club"><label>Descripción</label><input id="pdsc">
+   <div class="grid2"><div><label>Puntos</label><input id="pc" type="number" inputmode="numeric"></div><div><label>Unidades (vacío = sin límite)</label><input id="ps" type="number" inputmode="numeric"></div></div>
+   <label>Lo regala (comercio o patrocinador)</label><input id="psp"><button class="mt" id="padd">Añadir premio</button></div>`;
+  $('#padd').onclick=()=>guard(async()=>{const n=$('#pn').value.trim(),c=+$('#pc').value; if(!n||!c) throw new Error('Pon nombre y puntos');
+    const {error}=await sb.from('prizes').insert({name:n,description:$('#pdsc').value.trim()||null,cost_points:c,stock:$('#ps').value===''?null:+$('#ps').value,sponsor:$('#psp').value.trim()||null}); if(error) throw error; aPremios(b)});
+}
+function prizeSet(id,patch){guard(async()=>{const {error}=await sb.from('prizes').update(patch).eq('id',id);if(error)throw error;aPremios($('#adm'))})}
+function deliver(id){guard(async()=>{await rpc('admin_deliver',{p_redemption:id});aPremios($('#adm'))})}
+
+async function aSorpresas(b){
+  const g=await rpc('admin_gifts');
+  b.innerHTML=`<div class="box"><h3>Regalo semanal de la ruleta</h3><p class="muted small">El sistema elige solo un día y una hora al azar de esa semana (ni tú la sabes). El primer socio que tire después, se lo lleva.</p>
+    <label>Semana</label><input id="gw" type="date" value="${new Date().toISOString().slice(0,10)}"><label>Regalo</label><input id="gg" placeholder="Camiseta del club"><label>Lo regala (opcional)</label><input id="gs">
+    <button class="mt" id="gok">Programar regalo</button></div>
+   <div class="box"><h3>Premio sorpresa de la porra</h3><p class="muted small">Se asigna a un partido del primer equipo al azar de las próximas 4 semanas. Se sortea entre los que acierten el resultado exacto.</p>
+    <label>Premio</label><input id="jg" placeholder="Vale de 20 € en…"><button class="mt" id="jok">Programar premio</button></div>
+   <div class="box"><h3>Historial</h3><ul class="list small">${g.map(x=>`<li><div class="grow"><b>${esc(x.tipo)}</b> · ${fmtDay(x.fecha)}<div>${esc(x.gift)}</div><div class="muted">${x.ganador?'Ganador: '+esc(x.ganador):'Todavía sin ganador'}</div></div>
+     ${x.ganador&&!x.delivered?`<button style="flex:0" onclick="giftDone('${x.tipo}','${x.ref}')">Entregado</button>`:x.delivered?'<span class="tag activo">ENTREGADO</span>':''}</li>`).join('')||'<li class="muted">Nada programado</li>'}</ul></div>`;
+  $('#gok').onclick=()=>guard(async()=>{if(!$('#gg').value.trim()) throw new Error('Pon el regalo'); await rpc('admin_weekly_gift',{p_week:$('#gw').value,p_gift:$('#gg').value.trim(),p_sponsor:$('#gs').value.trim()||null}); toast('Regalo programado'); aSorpresas(b)});
+  $('#jok').onclick=()=>guard(async()=>{if(!$('#jg').value.trim()) throw new Error('Pon el premio'); await rpc('admin_porra_jackpot',{p_gift:$('#jg').value.trim()}); toast('Premio programado en un partido secreto'); aSorpresas(b)});
+}
+function giftDone(t,r){guard(async()=>{await rpc('admin_gift_delivered',{p_tipo:t,p_ref:r});aSorpresas($('#adm'))})}
+
+async function aCarteles(b){
+  const today=new Date(), d=today.getDay(), mon=new Date(today); mon.setDate(today.getDate()-((d+6)%7)); const sun=new Date(mon); sun.setDate(mon.getDate()+6);
+  const iso=x=>x.toISOString().slice(0,10);
+  b.innerHTML=`<div class="box"><h3>Carteles de asistencia</h3><p class="muted small">Un QR distinto por partido en casa. Solo vale durante el partido y una vez por persona. Imprímelos y pégalos en la puerta del pabellón.</p>
+    <div class="grid2"><div><label>Desde</label><input id="cf" type="date" value="${iso(mon)}"></div><div><label>Hasta</label><input id="ct" type="date" value="${iso(sun)}"></div></div>
+    <button class="mt" id="cgo">Generar carteles para imprimir</button></div>`;
+  $('#cgo').onclick=()=>guard(async()=>{
+    const ms=await rpc('admin_home_matches',{p_from:$('#cf').value,p_to:$('#ct').value});
+    if(!ms.length) throw new Error('No hay partidos en casa en esas fechas');
+    const pts=S.settings.puntos||{};
+    printPages(ms.map(m=>({title:`${m.team} vs ${m.rival}`, sub:`${fmtDate(m.starts_at)} · ${fmtTime(m.starts_at)}${m.venue?' · '+m.venue:''}`,
+      url:`${APP_URL}#p=${m.attendance_code}`, foot:`Socio: escanea con tu carnet y suma ${(pts.asistencia||10)*(m.is_flagship?(pts.multiplicador_preferente||2):1)} puntos`})));
+  });
+}
+function printQR(url,title,foot){printPages([{title,sub:'',url,foot}])}
+function printPages(pages){
+  const w=window.open('','_blank'); if(!w) return toast('Permite las ventanas emergentes para imprimir',true);
+  w.document.write(`<html><head><title>Carteles</title><style>body{margin:0;font-family:system-ui,sans-serif}.p{page-break-after:always;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;box-sizing:border-box}
+   .p img.e{width:160px;border-radius:50%}.p img.q{width:60vmin;max-width:420px;margin:20px 0}h1{font-size:34px;margin:12px 0 4px}h2{font-size:22px;font-weight:500;margin:0;color:#444}p{font-size:22px;font-weight:700}</style></head><body>
+   ${pages.map(p=>`<div class="p"><img class="e" src="${APP_URL.replace(/[^/]*$/,'')}escudo.jpg"><h1>${esc(p.title)}</h1><h2>${esc(p.sub)}</h2><img class="q" src="${qrImg(p.url,10)}"><p>${esc(p.foot)}</p><small>Carnet de socio · Quinta de Tui Futsal</small></div>`).join('')}
+   <script>setTimeout(()=>print(),600)<\/script></body></html>`);
+  w.document.close();
+}
+
+async function aAjustes(b){
+  const pago=(S.settings.pago||{}).texto||'';
+  b.innerHTML=`<div class="box"><h3>Cómo pagar (mientras no haya pago online)</h3><p class="muted small">Lo ven los socios pendientes de pago. Puedes usar {numero} para su nº de socio.</p>
+    <textarea id="pt" rows="3" placeholder="Haz un Bizum al 6XX XXX XXX con el concepto 'Carnet {numero}'.">${esc(pago)}</textarea><button class="mt" id="pok">Guardar</button></div>
+   <div class="box"><h3>Importar socios de Clubber</h3><p class="muted small">Exporta de Clubber un CSV con nombre, apellidos, email, teléfono, fecha de nacimiento y equipo. Cuando esa familia se dé de alta con su email, sus datos aparecerán ya rellenados. Al importar se sustituye la lista anterior.</p>
+    <input type="file" id="csv" accept=".csv,text/csv"><div id="cprev" class="muted small mt"></div></div>`;
+  $('#pok').onclick=()=>guard(async()=>{const {error}=await sb.from('settings').upsert({key:'pago',value:{texto:$('#pt').value.trim()}});if(error)throw error;S.settings.pago={texto:$('#pt').value.trim()};toast('Guardado')});
+  $('#csv').onchange=e=>{const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>previewCSV(r.result); r.readAsText(f,'utf-8')};
+}
+function parseCSV(t){
+  t=t.replace(/^﻿/,''); const sep=(t.split('\n')[0].match(/;/g)||[]).length>(t.split('\n')[0].match(/,/g)||[]).length?';':',';
+  const rows=[];let row=[],f='',q=false;
+  for(let i=0;i<t.length;i++){const ch=t[i];
+    if(q){if(ch==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=ch}
+    else if(ch==='"')q=true; else if(ch===sep){row.push(f);f=''} else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;row.push(f);rows.push(row);row=[];f=''} else f+=ch}
+  if(f||row.length){row.push(f);rows.push(row)}
+  return rows.filter(r=>r.some(x=>x.trim()));
+}
+function previewCSV(text){
+  const rows=parseCSV(text); if(rows.length<2) return toast('El archivo está vacío',true);
+  const norm=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const H=rows[0].map(norm); const find=(...k)=>H.findIndex(h=>k.some(x=>h.includes(x)));
+  const ix={email:find('email','correo','e-mail'),phone:find('movil','telefono','phone','tlf'),first_name:find('nombre','name'),last_name:find('apellido','surname'),birth:find('nacimiento','birth','fecha nac'),team:find('equipo','team','categoria')};
+  if(ix.last_name===ix.first_name) ix.first_name=H.findIndex((h,i)=>h.includes('nombre')&&i!==ix.last_name);
+  const date=s=>{s=(s||'').trim();let m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);if(m)return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[0]:''};
+  const g=(r,i)=>i>=0?(r[i]||'').trim():'';
+  const data=rows.slice(1).map(r=>({email:g(r,ix.email),phone:g(r,ix.phone),first_name:g(r,ix.first_name),last_name:g(r,ix.last_name),birth_date:date(g(r,ix.birth)),team_name:g(r,ix.team)})).filter(r=>r.email||r.phone);
+  const miss=Object.entries(ix).filter(([k,v])=>v<0).map(([k])=>k);
+  $('#cprev').innerHTML=`${data.length} personas encontradas.${miss.length?' No encuentro las columnas: '+miss.join(', ')+'.':''}<br>Ejemplo: ${esc(JSON.stringify(data[0]||{}))}<br><button class="mt" id="cimp">Importar ${data.length}</button>`;
+  $('#cimp').onclick=()=>guard(async()=>{const n=await rpc('admin_import_clubber',{p_rows:data});toast(n+' importados');$('#cprev').textContent=n+' personas importadas.'});
+}
+
+sb.auth.onAuthStateChange((ev)=>{ if(ev==='SIGNED_OUT'){S.user=null} });
+boot().catch(e=>{app.innerHTML=`<div class="wrap"><div class="banner bad">No se pudo cargar: ${esc(e.message)}</div><button onclick="location.reload()">Reintentar</button></div>`});
+</script>
+</body>
+</html>
