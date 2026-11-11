@@ -2,7 +2,7 @@
 
 App web instalable (PWA) de un solo archivo + Supabase (proyecto `carnet-quinta-de-tui`).
 
-- `app/` — lo que se publica (GitHub Pages). Conexión en `app/config.js`.
+- `docs/` — lo que se publica (GitHub Pages). Conexión en `docs/config.js`.
 - `supabase/` — tablas. Las funciones están en el historial de migraciones del proyecto.
 
 Fase 1: alta y pack familiar, carnet con QR, equipos y partidos, ruleta diaria con regalo semanal secreto,
