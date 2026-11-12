@@ -910,27 +910,33 @@ function timeline(f){
     h("div", {class:"legend", style:"margin-top:6px"}, h("span", null, h("i", {style:"background:var(--slot);border:1px dashed var(--slot-line)"}), "Hora de pabellón"), h("span", null, h("i", {style:"background:var(--us)"}), "Nuestro partido en casa"), h("span", null, h("i", {style:"background:var(--steel-soft);border:1px solid var(--steel)"}), "Fuera"), h("span", null, h("i", {style:"background:var(--rival);border:1px solid var(--rival-line)"}), "Rival vigilado")));
 }
 
-/* ----- Correos Futgal (maqueta: falta conectar el lector del servidor) ----- */
-const MAIL_DEMO = [{id:"demo", titular:"Ejemplo · Cambio de horario en la jornada", resumen:"Así se verá cada mensaje nuevo de Futgal: un titular y un resumen corto para decidir si hay que contestar o hacer algo.", de:"Futgal", fecha:today(), accion:"Revisar", demo:true}];
+/* ----- Correo Futgal ----- */
 function viewMails(){
-  const list = MAIL_DEMO;
-  if (!ui.mailSel) ui.mailSel = null;
-  const card = (m) => h("div", {class:"card" + (m.demo ? " new" : "")},
-    h("div", {class:"card-head"}, h("div", null, h("h3", null, m.titular), h("div", {class:"meta"}, m.de + " · " + fechaLarga(m.fecha))),
-      m.demo ? h("span", {class:"pill steel"}, "Ejemplo") : h("span", {class:"pill warn"}, m.accion || "Sin leer")),
-    h("p", {style:"margin:0"}, m.resumen),
-    ui.mailSel === m.id ? h("div", {class:"empty"}, "Aquí aparecerá el correo completo cuando el lector esté conectado.") : null,
+  const st = (S.mails._estado) || null;
+  const all = Object.entries(S.mails).filter(([id]) => id !== "_estado").sort((a,b) => String(b[1].entrada||"").localeCompare(String(a[1].entrada||"")));
+  const filtro = ui.mailFiltro || "pendientes";
+  const list = all.filter(([,m]) => filtro === "pendientes" ? m.estado !== "gestionado" : m.estado === "gestionado");
+  const card = ([id,m]) => h("div", {class:"card"},
+    h("div", {class:"card-head"}, h("div", null, h("h3", null, m.titular || m.asunto), h("div", {class:"meta"}, (m.remitente || "Futgal") + " · " + (m.fecha || "") + (m.titular ? " · " + m.asunto : ""))),
+      h("div", {class:"row", style:"gap:6px"}, m.urgente ? h("span", {class:"pill bad"}, "Urgente") : null, m.accion ? h("span", {class:"pill warn"}, m.accion) : null)),
+    m.resumen ? h("p", {style:"margin:0"}, m.resumen) : h("p", {class:"meta", style:"margin:0"}, "Resumen pendiente. " + String(m.cuerpo || "").slice(0, 220) + (String(m.cuerpo||"").length > 220 ? "…" : "")),
+    ui.mailSel === id ? h("div", {class:"empty", style:"white-space:pre-wrap;color:var(--ink)"}, m.cuerpo || "(Sin texto)",
+      (m.adjuntos||[]).length ? h("div", {class:"meta", style:"margin-top:8px"}, "Adjuntos: " + m.adjuntos.join(", ") + " (ábrelos en Futgal)") : null) : null,
     h("div", {class:"row end"},
-      h("button", {class:"btn ghost small", type:"button", onclick:() => { ui.mailSel = ui.mailSel === m.id ? null : m.id; render(); }}, ui.mailSel === m.id ? "Ocultar correo" : "Ver correo completo"),
-      h("button", {class:"btn small", type:"button", disabled:true, title:"Próximamente"}, "Responder")));
-  return [clubBar("Correo Futgal"), h("main", {class:"wrap"},
-    h("h2", null, "Correos de Futgal"),
-    h("p", {class:"lead"}, "Los mensajes sin leer del buzón de Futgal, cada uno con su titular y un resumen. Desde aquí se podrá abrir el correo entero y contestarlo."),
-    h("div", {class:"banner", style:"margin:0 0 12px"}, "En preparación: falta instalar en el servidor el lector que entra en Futgal. De momento es solo la maqueta."),
+      h("button", {class:"btn ghost small", type:"button", onclick:() => { ui.mailSel = ui.mailSel === id ? null : id; render(); }}, ui.mailSel === id ? "Ocultar correo" : "Ver correo completo"),
+      h("a", {class:"btn ghost small", href:"https://intranet.futgal.es/nfg/NPcd/GCorreos_Listado?cod_primaria=1000193&cod_buzon=0&ModoCorreo=0", target:"_blank", rel:"noopener"}, "Abrir en Futgal ↗"),
+      h("button", {class:"btn small", type:"button", onclick:() => patch("mails", id, {estado: m.estado === "gestionado" ? "nuevo" : "gestionado"})}, m.estado === "gestionado" ? "Volver a pendientes" : "Marcar como gestionado")));
+  const stTxt = !st ? "Todavía no se ha revisado." : st.ok ? "Última revisión: " + new Date(st.fecha).toLocaleString("es-ES", {dateStyle:"short", timeStyle:"short"}) + " · " + (st.nuevos || 0) + " nuevo(s)" : "Última revisión con error: " + (st.error || "");
+  return [clubBar("Correo Futgal"), dbNotice(), h("main", {class:"wrap"},
+    h("h2", null, "Correo de Futgal"),
+    h("p", {class:"lead"}, "Los correos sin leer del buzón oficial de Futgal se copian aquí tres veces al día (8:00, 14:00 y 20:00) y en Futgal siguen como no leídos. Después les pongo titular y resumen."),
     h("div", {class:"footbar", style:"margin-bottom:12px"},
-      h("span", {class:"meta"}, "Última revisión: —"),
-      h("button", {class:"btn", type:"button", disabled:true, title:"Próximamente"}, "Bajar correos nuevos")),
-    h("div", {class:"grid"}, list.map(card)))];
+      h("span", {class: st && !st.ok ? "pill bad" : "meta"}, stTxt),
+      h("button", {class:"btn", type:"button", onclick: async (ev) => { ev.target.disabled = true; toast("Revisando Futgal…");
+        try { const {data, error} = await SB.functions.invoke("futgal-correos"); if (error) throw error; toast(data && data.ok ? (data.nuevos.length + " correo(s) nuevo(s).") : "No se pudo revisar: mira el aviso."); }
+        catch(e){ toast("No se pudo revisar ahora."); } location.reload(); }}, "Revisar ahora")),
+    h("div", {class:"chips", style:"margin-bottom:12px"}, [["pendientes","Pendientes"],["gestionados","Gestionados"]].map(([k,l]) => h("button", {class:"chip-btn", type:"button", "aria-pressed": filtro === k ? "true" : "false", onclick:() => { ui.mailFiltro = k; render(); }}, l + " (" + all.filter(([,m]) => k === "pendientes" ? m.estado !== "gestionado" : m.estado === "gestionado").length + ")"))),
+    list.length ? h("div", {class:"grid"}, list.map(card)) : h("div", {class:"empty"}, filtro === "pendientes" ? "No hay correos pendientes." : "Aún no hay correos gestionados."))];
 }
 
 /* ----- Generar ----- */
