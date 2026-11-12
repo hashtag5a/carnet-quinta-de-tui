@@ -1,0 +1,5 @@
+-- Panel de administración (docs/panel/): permisos por email y datos del calendario y correo.
+-- Aplicado en el proyecto como migraciones panel_admin_permisos y panel_admin_hardening.
+-- panel_permisos(email, nombre, modulos[]): módulos programar, generar, correo, carnet.
+-- panel_docs(col, id, data): colecciones del calendario (equipos, partidos, ...) y mails.
+-- is_admin() ahora también es verdadero para quien tenga el módulo carnet.

@@ -137,6 +137,7 @@ async function boot(){
   const m = hash.match(/[#&]([cp])=([0-9a-f]+)/i);
   if(m) ssSet('qt_code', m[1]+':'+m[2]);
   const st = hash.match(/^#(gol|calendario|aficionado|ruleta|navidad|loteria)$/); if(st) ssSet('qt_story', st[1]);
+  if(hash==='#gestion') ssSet('qt_tab','admin');
   const inv = hash.match(/^#invita-(\d+)$/); if(inv) lsSet('qt_ref', inv[1]);
   const gf = hash.match(/^#regalo-([0-9a-f]+)$/); if(gf) ssSet('qt_gift', gf[1]);
   if(hash) history.replaceState(null,'',location.pathname);
@@ -178,6 +179,7 @@ async function loadAll(){
   S.teams = teams.data || []; S.cards = cards || []; S.admin = !!admin;
   S.settings = Object.fromEntries((sets.data||[]).map(r=>[r.key,r.value]));
   if(!S.cards.find(c=>c.id===S.cur)) S.cur = (S.cards[0]||{}).id;
+  if(S.admin && ssGet('qt_tab')==='admin'){ssDel('qt_tab'); S.tab='admin'}
   if(!S.cards.length && !S.admin) return renderAlta();
   if(!S.cards.length && S.admin && S.tab!=='admin') S.tab='admin';
   render();
