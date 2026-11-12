@@ -27,7 +27,7 @@ Deno.serve(async () => {
     if (u.message?.migrate_to_chat_id) { cfg = { ...cfg, chat_id: u.message.migrate_to_chat_id }; await sb.from("panel_docs").upsert({ col: "mails", id: "_telegram", data: cfg }); }
   }
   if (upd.result?.length) await tg("getUpdates", { offset: upd.result[upd.result.length - 1].update_id + 1 });
-  if (!cfg.chat_id) return Response.json({ ok: false, reason: "el bot aún no está en ningún grupo" });
+  if (!cfg.chat_id) return Response.json({ ok: false, reason: "el bot aún no está en ningún grupo", tg_ok: upd.ok, tg_desc: upd.description, updates: (upd.result || []).map((u: any) => Object.keys(u).join(",")) });
 
   const { data: rows } = await sb.from("panel_docs").select("id,data,updated_at").eq("col", "mails");
   const ahora = Date.now(); let enviados = 0;

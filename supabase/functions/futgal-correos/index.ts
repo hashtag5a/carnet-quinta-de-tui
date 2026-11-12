@@ -26,7 +26,9 @@ async function go(path: string, init: RequestInit = {}, hops = 6): Promise<Respo
   throw new Error("Demasiadas redirecciones");
 }
 const text = async (r: Response) => new TextDecoder("iso-8859-15").decode(await r.arrayBuffer());
-const ent = (s: string) => s.replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n));
+const NAMED: Record<string, string> = { ntilde: "ñ", Ntilde: "Ñ", ccedil: "ç", Ccedil: "Ç", ordm: "º", ordf: "ª", iexcl: "¡", iquest: "¿", euro: "€", laquo: "«", raquo: "»", middot: "·", deg: "°", hellip: "…", ndash: "–", mdash: "—", ldquo: "“", rdquo: "”", lsquo: "‘", rsquo: "’", bull: "•" };
+const MARK: Record<string, string> = { acute: "\u0301", grave: "\u0300", uml: "\u0308", circ: "\u0302", tilde: "\u0303" };
+const ent = (s: string) => s.replace(/&([a-zA-Z])(acute|grave|uml|circ|tilde);/g, (_, l, k) => (l + MARK[k]).normalize("NFC")).replace(/&([a-zA-Z]+);/g, (m, n) => NAMED[n] ?? m).replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16))).replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n));
 const strip = (s: string) => ent(s.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<style[\s\S]*?<\/style>/gi, "").replace(/<br\s*\/?>/gi, "\n").replace(/<\/(p|div|tr|li|h\d)>/gi, "\n").replace(/<[^>]+>/g, " ")).replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
 
 Deno.serve(async () => {
