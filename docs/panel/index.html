@@ -849,6 +849,13 @@ function tabCalendario(){
     h("h2", null, "Jornada"),
     h("p", {class:"lead"}, "Fuera: día y hora los pone el club local. Casa: Proponer horarios reparte el fin de semana según prioridad, normas, incompatibilidades y horas de pabellón. Si cambias día, hora o pabellón de un equipo queda Fijo; pulsa Recalcular el resto y todo se reorganiza alrededor."),
     !locked() ? h("div", {class:"banner", style:"margin:0 0 12px"}, "La configuración está en modificación. Confírmala en Equipos antes de cerrar la jornada.") : null,
+    (() => { const fi = S.config.futgal_import; if (!fi) return null;
+      const cuando = new Date(fi.fecha).toLocaleString("es-ES", {weekday:"long", day:"numeric", month:"numeric", hour:"2-digit", minute:"2-digit"});
+      return h("div", {class:"card", style:"margin:0 0 12px;gap:6px"},
+        h("div", {class:"row", style:"justify-content:space-between"}, h("b", null, "Importación de Futgal"), fi.ok ? h("span", {class:"pill ok"}, cuando) : h("span", {class:"pill bad"}, "Error · " + cuando)),
+        fi.ok ? h("span", {class:"meta"}, fi.importados + " partidos de nuestros equipos (" + fi.nuevos + " nuevos) y " + fi.rivales + " de rivales vigilados. Se importa solo los martes a las 16:00. Los partidos en casa con hora ya puesta en Futgal entran como Fijo.") : h("span", {class:"meta"}, fi.error || ""),
+        (fi.cambios || []).length ? h("div", null, h("b", null, "Cambios de Futgal en partidos confirmados o fijados:"), h("ul", {style:"margin:4px 0 0;padding-left:18px"}, fi.cambios.map(c => h("li", null, c)))) : null,
+        (fi.sinEquipo || []).length ? h("div", null, h("b", null, "Sin equipo en el panel (añádelo en Equipos):"), h("ul", {style:"margin:4px 0 0;padding-left:18px"}, fi.sinEquipo.map(c => h("li", null, c)))) : null); })(),
     h("div", {class:"daybar"}, h("div", {class:"grid", style:"gap:6px;min-width:0"}, lab("Fin de semana"), wkChips()),
       h("span", {class:"meta"}, "Margen por retrasos: " + c.margen + " min · entre partidos en el pabellón: " + c.margenPab + " min")),
     h("div", {style:"height:12px"}),
