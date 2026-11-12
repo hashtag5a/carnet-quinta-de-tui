@@ -1,6 +1,7 @@
 // Bot de Correo Futgal: entra en la intranet, copia los correos no leídos al panel
 // (panel_docs, col 'mails') y los vuelve a dejar como no leídos en Futgal.
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import { extractText, getDocumentProxy } from "npm:unpdf@0.12.1";
 
 const BASE = "https://intranet.futgal.es";
 const LIST = "/nfg/NPcd/GCorreos_Listado?cod_primaria=1000193&cod_buzon=0&ModoCorreo=0";
@@ -58,8 +59,37 @@ Deno.serve(async () => {
       const v = await text(vRes);
       const i0 = v.search(/class="BG_TIT_PAG"\s+height/); const i1 = v.indexOf("Cerrar Ventana", i0);
       let cuerpo = strip(i0 >= 0 ? v.slice(v.indexOf(">", i0) + 1, i1 > 0 ? i1 : undefined) : v);
-      const adjBlock = (v.match(/Adjuntos:[\s\S]*?<\/table>/i) || [""])[0];
-      const adjuntos = [...adjBlock.matchAll(/<a[^>]*>([\s\S]*?)<\/a>/gi)].map(m => strip(m[1])).filter(Boolean);
+      // adjuntos: los del apartado Adjuntos y los enlaces a PDF dentro del texto
+      const links: { href: string; nombre: string }[] = [];
+      for (const m of v.matchAll(/<a[^>]*href=["']?([^"'\s>]+)["']?[^>]*>([\s\S]*?)<\/a>/gi)) {
+        const href = ent(m[1]); const nombre = strip(m[2]).replace(/\s*\([\d.,]+\s*KB\)\s*$/i, "").trim();
+        if (/GCorreos_Descarga|DESGARGA_PDF|DESCARGA_PDF|\.pdf(\?|$)/i.test(href) && !links.some(l => l.href === href)) links.push({ href, nombre: nombre || "adjunto" });
+      }
+      const adjuntos: Record<string, unknown>[] = [];
+      for (const [n, l] of links.slice(0, 6).entries()) {
+        const item: Record<string, unknown> = { nombre: l.nombre };
+        try {
+          const res = await go(new URL(l.href, BASE + "/nfg/NPcd/").toString());
+          const buf = new Uint8Array(await res.arrayBuffer());
+          item.kb = Math.round(buf.length / 1024);
+          if (buf.length > 15 * 1024 * 1024) { item.nota = "Demasiado grande para copiarlo."; adjuntos.push(item); continue; }
+          const isPdf = buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46;
+          const safe = l.nombre.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w.-]+/g, "_").slice(0, 80) || "adjunto";
+          const path = "mails/" + id + "/" + (n + 1) + "-" + safe;
+          const up = await sb.storage.from("futgal-adjuntos").upload(path, buf, { upsert: true, contentType: isPdf ? "application/pdf" : (res.headers.get("content-type") || "application/octet-stream") });
+          if (!up.error) item.path = path;
+          if (isPdf) {
+            try {
+              const pdf = await getDocumentProxy(buf);
+              const { text: t, totalPages } = await extractText(pdf, { mergePages: true });
+              const txt = String(t || "").replace(/[ \t]+/g, " ").replace(/\n\s*\n+/g, "\n").trim();
+              item.paginas = totalPages; item.texto = txt.slice(0, 15000);
+              if (txt.length < 30) item.nota = "PDF escaneado: no tiene texto que leer.";
+            } catch (_) { item.nota = "No se pudo leer el PDF."; }
+          }
+        } catch (_) { item.nota = "No se pudo descargar."; }
+        adjuntos.push(item);
+      }
       cuerpo = cuerpo.slice(0, 20000);
       // volver a dejarlo como no leído en Futgal
       await (await go(LIST + "&marcarCorreos=1&marca_leido=0&mc=" + id)).body?.cancel();
