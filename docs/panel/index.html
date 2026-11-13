@@ -1077,7 +1077,10 @@ function viewAuto(){
   }
   const data = weekendData(ui.weekend);
   const n = data.matches.length;
-  if (ui.formato === "post" && n > 3) ui.formato = "story";
+  // Post 4:5: una imagen por cada 3 partidos, sin mezclar días (cabecera = el día).
+  const pages = data.days.flatMap(d => { const out = []; for (let i = 0; i < d.matches.length; i += 3) out.push({fecha: d.matches[0].fecha, matches: d.matches.slice(i, i + 3)}); return out; });
+  if (!(ui.pagina >= 0 && ui.pagina < pages.length)) ui.pagina = 0;
+  const pageHeader = pg => headerFor([pg.fecha]);
   const hk = ui.weekend;
   const header = ui.header[hk] ?? data.defHeader;
   const canvas = h("canvas", {id:"poster", width:"1080", height: ui.formato === "post" ? "1350" : "1920", role:"img", "aria-label":"Cartel del calendario " + header});
@@ -1093,14 +1096,17 @@ function viewAuto(){
           h("h3", null, "Formato"),
           h("div", {class:"checks"},
             h("label", {class:"check"}, h("input", {type:"radio", name:"fmt", checked: ui.formato === "story", onchange:() => { ui.formato = "story"; render(); }}), "Story 9:16 · todos los partidos"),
-            h("label", {class:"check"}, h("input", {type:"radio", name:"fmt", checked: ui.formato === "post", disabled: n > 3, onchange:() => { ui.formato = "post"; render(); }}), "Post 4:5 · hasta 3 partidos")),
-          n > 3 ? h("span", {class:"meta"}, "Este fin de semana tiene " + n + " partidos: el formato 4:5 admite 3.") : null,
+            h("label", {class:"check"}, h("input", {type:"radio", name:"fmt", checked: ui.formato === "post", onchange:() => { ui.formato = "post"; ui.pagina = 0; render(); }}), "Post 4:5 · de 3 en 3 partidos (" + pages.length + (pages.length === 1 ? " imagen)" : " imágenes)"))),
+          ui.formato === "post" && pages.length > 1 ? h("div", null, h("h3", null, "Imagen"),
+            h("div", {class:"chips"}, pages.map((pg, i) => h("button", {class:"chip-btn", type:"button", "aria-pressed": i === ui.pagina ? "true" : "false", onclick:() => { ui.pagina = i; render(); }}, (i + 1) + " · " + ddmm(pg.fecha))))) : null,
+          ui.formato === "post" ? h("span", {class:"meta"}, "Cada imagen lleva el día como cabecera.") :
           h("label", {class:"f"}, "Texto de cabecera", h("input", {type:"text", id:"gen-header", value: header, oninput:(ev) => { ui.header[hk] = ev.target.value.toUpperCase(); draw(); }}))),
         h("div", {class:"card"},
           h("h3", null, n + " partido(s) en el cartel"),
           h("div", {class:"scroll"}, h("table", {class:"mini"}, h("tr", null, h("th", null, "Día"), h("th", null, "Hora"), h("th", null, "Categoría"), h("th", null, "Partido")),
             data.matches.map(m => h("tr", null, h("td", null, fechaLarga(m.fecha)), h("td", null, m.time), h("td", null, m.cat), h("td", null, m.home.name + " – " + m.away.name, h("div", {class:"meta"}, m.venue)))))),
-          h("div", {class:"row"}, h("button", {class:"btn", type:"button", id:"dl-btn", onclick:download}, "Descargar imagen (PNG)"),
+          h("div", {class:"row"}, h("button", {class:"btn", type:"button", id:"dl-btn", onclick:() => download()}, ui.formato === "post" && pages.length > 1 ? "Descargar esta imagen" : "Descargar imagen (PNG)"),
+            ui.formato === "post" && pages.length > 1 ? h("button", {class:"btn", type:"button", onclick:() => downloadAll()}, "Descargar las " + pages.length) : null,
             h("button", {class:"btn ghost", type:"button", onclick:() => go("manual")}, "Hacerlo a mano")),
           null)),
       h("div", {class:"poster"}, canvas)));
@@ -1110,17 +1116,34 @@ function viewAuto(){
   function draw(){
     const cv = document.getElementById("poster"); if (!cv) return;
     const hd = ui.header[hk] ?? data.defHeader;
-    Promise.all([fontsReady, cargarEscudos(data)]).then(() => { if (ui.formato === "post") drawPost(cv, hd, data); else drawStory(cv, hd, data); });
+    Promise.all([fontsReady, cargarEscudos(data)]).then(() => {
+      if (ui.formato === "post"){ const pg = pages[ui.pagina]; if (pg) drawPost(cv, pageHeader(pg), {matches: pg.matches}); }
+      else drawStory(cv, hd, data);
+    });
+  }
+  function nombre(i){ return "a-quinta-" + ui.weekend + "-" + (ui.formato === "post" ? "4x5-" + (i + 1) + "-de-" + pages.length : "story") + ".png"; }
+  function blobDe(cv){ return new Promise(ok => cv.toBlob(ok, "image/png")); }
+  async function guardar(blob, filename){
+    if (!blob){ toast("No se pudo crear la imagen."); return false; }
+    try { await dl.save({filename, data: blob}); return true; }
+    catch (e){ if (!(e && e.code === "declined")) toast(e && e.code === "rate_limited" ? "Ya hay una descarga pendiente de confirmar." : "No se pudo descargar la imagen."); return false; }
   }
   async function download(){
     const cv = document.getElementById("poster"); if (!cv) return;
     if (!dl){ toast("Las descargas no están disponibles en esta vista."); return; }
-    await fontsReady;
-    cv.toBlob(async (blob) => {
-      if (!blob){ toast("No se pudo crear la imagen."); return; }
-      try { await dl.save({filename: "a-quinta-" + ui.weekend + "-" + (ui.formato === "post" ? "4x5" : "story") + ".png", data: blob}); toast("Imagen descargada."); }
-      catch (e){ if (e && e.code === "declined") return; toast(e && e.code === "rate_limited" ? "Ya hay una descarga pendiente de confirmar." : "No se pudo descargar la imagen."); }
-    }, "image/png");
+    await Promise.all([fontsReady, cargarEscudos(data)]);
+    if (await guardar(await blobDe(cv), nombre(ui.pagina))) toast("Imagen descargada.");
+  }
+  async function downloadAll(){
+    if (!dl){ toast("Las descargas no están disponibles en esta vista."); return; }
+    await Promise.all([fontsReady, cargarEscudos(data)]);
+    const cv = document.createElement("canvas");
+    for (let i = 0; i < pages.length; i++){
+      drawPost(cv, pageHeader(pages[i]), {matches: pages[i].matches});
+      if (!(await guardar(await blobDe(cv), nombre(i)))) return;
+      await new Promise(r => setTimeout(r, 700));
+    }
+    toast(pages.length + " imágenes descargadas.");
   }
 }
 
@@ -1236,20 +1259,24 @@ function drawPost(cv, hd, data){
   const W = 1080, H = 1350; cv.width = W; cv.height = H; const c = cv.getContext("2d");
   bgDraw(c, W, H); let y = headerDraw(c, W, 34, hd, 104, 24);
   y += 22; rule(c, 48, y, 984); y += 14;
-  data.matches.slice(0,3).forEach(m => {
+  const lista = data.matches.slice(0,3);
+  // Alto de la fila del partido: 222 si cabe; si no, se encoge para no pisar el pie.
+  const libre = H - 26 - 46 - 24 - y, fijo = 6 + 58 + 6 + 74 + 6;
+  const MH = Math.max(150, Math.min(222, Math.floor(libre / Math.max(1, lista.length)) - fijo)), ES = Math.min(150, MH - 66);
+  lista.forEach(m => {
     y += 6;
     c.save(); c.font = "700 44px " + OS; setLS(c, 1); const cw = Math.min(c.measureText(m.cat).width + 108, 900); c.restore();
     brushBox(c, W/2, y + 32, cw, 64, -2, "#4E5A6B"); text(c, m.cat, W/2, y + 33, {font:OS, weight:"700", size:44, ls:1, rot:-2, maxW:cw - 60});
     y += 58;
-    const colW = 392, lx = 48 + colW/2, rx = 48 + colW + 200 + colW/2, mid = y + 111;
+    const colW = 392, lx = 48 + colW/2, rx = 48 + colW + 200 + colW/2, mid = y + MH/2;
     [[m.home, lx], [m.away, rx]].forEach(([t, cx]) => {
       const nm = fitWrap(c, t.name.toUpperCase(), {font:OS, weight:"600", size:34, maxW:380, lines:2, min:20});
-      const nh = nm.lines.length * nm.sz * 1.05; const total = 150 + 6 + nh; const top = mid - total/2;
-      emblem(c, t, cx, top + 75, 150, true);
-      drawLines(c, nm, cx, top + 156 + nh/2, {font:OS, weight:"600", lh:1.05});
+      const nh = nm.lines.length * nm.sz * 1.05; const total = ES + 6 + nh; const top = mid - total/2;
+      emblem(c, t, cx, top + ES/2, ES, true);
+      drawLines(c, nm, cx, top + ES + 6 + nh/2, {font:OS, weight:"600", lh:1.05});
     });
     text(c, "VS", 48 + colW + 100, mid, {font:MK, size:124, rot:-6});
-    y += 222; rule(c, 48, y, 984); y += 6;
+    y += MH; rule(c, 48, y, 984); y += 6;
     const u = 984/3.4, cols = [[48, u, CAL, ddmm(m.fecha)], [48 + u, u, CLOCK, m.time + " h."], [48 + 2*u, 1.4*u, null, m.venue.toUpperCase()]];
     const iy = y + 37;
     cols.forEach(([x0, w, ic, label], i) => {
