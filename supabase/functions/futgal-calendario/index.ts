@@ -144,14 +144,10 @@ Deno.serve(async (req) => {
     const { data: tgRow } = await sb.from("panel_docs").select("data").eq("col", "mails").eq("id", "_telegram").maybeSingle();
     const chat = (tgRow?.data as any)?.chat_id;
     if (token && chat && !opts.silencio && !(opts.ultimo && !informe.cambios.length)) {
-      const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+      // Aviso corto: solo que el calendario está listo y el enlace a Generar calendario.
       const lines = informe.ok
-        ? [`🗓️ <b>Calendario A Quinta · bot del panel</b>\n<i>${opts.ultimo ? "Revisión de Futgal al abrir Generar calendario" : "Importación de Futgal del martes"}. No es un correo de Futgal.</i>`, `${informe.importados} partidos de nuestros equipos (${informe.nuevos} nuevos) y ${informe.rivales} de rivales vigilados.`,
-           informe.cambios.length ? (opts.ultimo ? "🔄 <b>Futgal ha cambiado desde la última importación (ya actualizado en el panel):</b>\n" : "⚠️ <b>Cambios en partidos ya confirmados o fijados:</b>\n") + informe.cambios.map((c: string) => "• " + esc(c)).join("\n") : "",
-           informe.sinEquipo.length ? "❓ <b>Sin equipo asignado en el panel:</b>\n" + informe.sinEquipo.map((c: string) => "• " + esc(c)).join("\n") : "",
-           `<a href="https://hashtag5a.github.io/carnet-quinta-de-tui/panel/#auto">Abrir Generar calendario</a>`,
-           informe.sinEquipo.length ? `<a href="https://hashtag5a.github.io/carnet-quinta-de-tui/panel/#programar">Revisar equipos en Programar</a>` : ""]
-        : [`⚠️ <b>Calendario A Quinta · bot del panel</b>\nNo se pudo traer el calendario de Futgal.`, esc(informe.error || "")];
+        ? [`🗓️ <b>Calendario A Quinta listo</b>`, `<a href="https://hashtag5a.github.io/carnet-quinta-de-tui/panel/#auto">Abrir Generar calendario</a>`]
+        : [`⚠️ <b>No se pudo traer el calendario de Futgal</b>`, `<a href="https://hashtag5a.github.io/carnet-quinta-de-tui/panel/#auto">Abrir Generar calendario</a>`];
       await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chat, text: lines.filter(Boolean).join("\n\n"), parse_mode: "HTML", disable_web_page_preview: true }) });
     }
   } catch (_) { /* sin aviso */ }
