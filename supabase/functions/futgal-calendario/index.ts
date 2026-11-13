@@ -146,11 +146,12 @@ Deno.serve(async (req) => {
     if (token && chat && !opts.silencio && !(opts.ultimo && !informe.cambios.length)) {
       const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
       const lines = informe.ok
-        ? [opts.ultimo ? `📅 <b>Jornada revisada en Futgal (botón del panel)</b>` : `📅 <b>Jornada importada de Futgal</b>`, `${informe.importados} partidos de nuestros equipos (${informe.nuevos} nuevos) y ${informe.rivales} de rivales vigilados.`,
+        ? [`🗓️ <b>Calendario A Quinta · bot del panel</b>\n<i>${opts.ultimo ? "Revisión de Futgal al abrir Generar calendario" : "Importación de Futgal del martes"}. No es un correo de Futgal.</i>`, `${informe.importados} partidos de nuestros equipos (${informe.nuevos} nuevos) y ${informe.rivales} de rivales vigilados.`,
            informe.cambios.length ? (opts.ultimo ? "🔄 <b>Futgal ha cambiado desde la última importación (ya actualizado en el panel):</b>\n" : "⚠️ <b>Cambios en partidos ya confirmados o fijados:</b>\n") + informe.cambios.map((c: string) => "• " + esc(c)).join("\n") : "",
            informe.sinEquipo.length ? "❓ <b>Sin equipo asignado en el panel:</b>\n" + informe.sinEquipo.map((c: string) => "• " + esc(c)).join("\n") : "",
-           `<a href="https://hashtag5a.github.io/carnet-quinta-de-tui/panel/#programar">Abrir Programar calendario</a>`]
-        : [`⚠️ <b>No se pudo importar la jornada de Futgal</b>`, esc(informe.error || "")];
+           `<a href="https://hashtag5a.github.io/carnet-quinta-de-tui/panel/#auto">Abrir Generar calendario</a>`,
+           informe.sinEquipo.length ? `<a href="https://hashtag5a.github.io/carnet-quinta-de-tui/panel/#programar">Revisar equipos en Programar</a>` : ""]
+        : [`⚠️ <b>Calendario A Quinta · bot del panel</b>\nNo se pudo traer el calendario de Futgal.`, esc(informe.error || "")];
       await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chat, text: lines.filter(Boolean).join("\n\n"), parse_mode: "HTML", disable_web_page_preview: true }) });
     }
   } catch (_) { /* sin aviso */ }
