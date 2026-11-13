@@ -54,6 +54,10 @@ const letterOf = (s: string) => ((s.match(/"([A-Z])"\s*$/) || s.match(/"([A-Z])"
 Deno.serve(async (req) => {
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const opts = await req.json().catch(() => ({}));
+  // Quién llama: el cron del martes usa la clave anónima; el panel, la sesión de un usuario.
+  // Desde el panel siempre manda lo último de Futgal y nunca avisa por Telegram.
+  const rol = (() => { try { const t = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").split(".")[1].replace(/-/g, "+").replace(/_/g, "/"); return JSON.parse(atob(t + "===".slice((t.length + 3) % 4))).role || ""; } catch { return ""; } })();
+  if (rol === "authenticated") opts.ultimo = true;
   const informe: Record<string, any> = { fecha: new Date().toISOString(), importados: 0, nuevos: 0, actualizados: 0, sinEquipo: [], cambios: [], rivales: 0 };
   try {
     await text(await go("/nfg/"));
@@ -143,7 +147,7 @@ Deno.serve(async (req) => {
     const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
     const { data: tgRow } = await sb.from("panel_docs").select("data").eq("col", "mails").eq("id", "_telegram").maybeSingle();
     const chat = (tgRow?.data as any)?.chat_id;
-    if (token && chat && !opts.silencio && !opts.ultimo) { // solo la entrada del martes avisa
+    if (token && chat && !opts.silencio && !opts.ultimo && rol !== "authenticated") { // solo la entrada del martes avisa
       // Aviso corto: solo que el calendario está listo y el enlace a Generar calendario.
       const lines = informe.ok
         ? [`🗓️ <b>Calendario A Quinta listo</b>`, `<a href="https://hashtag5a.github.io/carnet-quinta-de-tui/panel/#auto">Abrir Generar calendario</a>`]
