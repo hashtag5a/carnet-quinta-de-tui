@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><body style="margin:0;background:#0c0c0c">
+<style>
+@font-face{font-family:"Permanent Marker";src:url(fuentes/PermanentMarker-Regular.ttf)}
+@font-face{font-family:"Caveat Brush";src:url(fuentes/CaveatBrush-Regular.ttf)}
+@font-face{font-family:Oswald;src:url(fuentes/Oswald.ttf);font-weight:200 700}
+</style>
+<script type="module">
+import { generatePosters } from './motor.js';
+// datos: { matches, teams, crests, background }   opts: { format, batch }
+window.render = async (datos, opts) => {
+  // mismo nombre de archivo que archivo() en generar.py
+  const logoUrl = p => (p ? 'escudos/' + p.replace(/[^A-Za-z0-9._-]/g, '_') : '');
+  const r = await generatePosters(datos.matches, { teams: datos.teams, crests: datos.crests, logoUrl }, { ...opts, background: datos.background || null });
+  return { images: r.images.map(x => ({ name: x.filename, w: x.canvas.width, h: x.canvas.height, data: x.canvas.toDataURL('image/jpeg', 0.93) })), missing: r.missingCrests };
+};
+window.ready = true;
+</script>

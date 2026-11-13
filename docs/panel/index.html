@@ -280,6 +280,7 @@ async function initDb(){
     (data || []).forEach(r => { S[r.col][r.id] = r.data; });
     dbMode = "ok"; render();
   };
+  window.__recargar = load;
   await load();
   if (ME.super) await loadPerms();
   setInterval(() => { if (!document.hidden && !document.activeElement?.matches?.("input,select,textarea")) load(); }, 20000);
@@ -456,7 +457,7 @@ function viewHome(){
     h("div", {class:"motto"}, "COMPETICIÓN", h("i"), "FORMACIÓN", h("i"), "FUTURO"),
     h("div", {class:"bigbtns"},
       can("programar") ? h("button", {class:"bigbtn", type:"button", onclick:() => go("programar")}, h("b", null, "Programar calendario"), h("span", null, "Equipos, incompatibilidades, normas, horas de pabellón y la jornada sin coincidencias.")) : null,
-      can("generar") ? h("button", {class:"bigbtn", type:"button", onclick:() => go("generar")}, h("b", null, "Generar calendario"), h("span", null, "El cartel del fin de semana, automático desde lo confirmado o manual.")) : null,
+      can("generar") ? h("button", {class:"bigbtn", type:"button", onclick:() => { go("generar"); traerFutgal(); }}, h("b", null, "Generar calendario"), h("span", null, "El cartel del fin de semana, automático desde lo confirmado o manual.")) : null,
       can("correo") ? h("button", {class:"bigbtn", type:"button", onclick:() => go("mails")}, h("b", null, "Correo Futgal", (() => { const n = Object.entries(S.mails).filter(([id,m]) => !String(id).startsWith("_") && m.estado !== "gestionado").length; return n ? h("span", {class:"pill bad", style:"margin-left:8px;vertical-align:middle;font-family:var(--body)"}, n + (n === 1 ? " pendiente" : " pendientes")) : null; })()), h("span", null, "Los mensajes nuevos del buzón de Futgal, con titular y resumen para decidir qué hacer.")) : null,
       can("carnet") ? h("a", {class:"bigbtn", href:"../#gestion", style:"text-decoration:none"}, h("b", null, "Carnet de socio"), h("span", null, "Socios y familias, cuotas, puntos y premios, comercios, porra y lotería.")) : null,
       ME.super ? h("button", {class:"bigbtn", type:"button", onclick:() => go("permisos")}, h("b", null, "Permisos"), h("span", null, "Quién entra al panel y qué parte ve cada persona.")) : null),
@@ -853,7 +854,8 @@ function tabCalendario(){
       const cuando = new Date(fi.fecha).toLocaleString("es-ES", {weekday:"long", day:"numeric", month:"numeric", hour:"2-digit", minute:"2-digit"});
       return h("div", {class:"card", style:"margin:0 0 12px;gap:6px"},
         h("div", {class:"row", style:"justify-content:space-between"}, h("b", null, "Importación de Futgal"), fi.ok ? h("span", {class:"pill ok"}, cuando) : h("span", {class:"pill bad"}, "Error · " + cuando)),
-        fi.ok ? h("span", {class:"meta"}, fi.importados + " partidos de nuestros equipos (" + fi.nuevos + " nuevos) y " + fi.rivales + " de rivales vigilados. Se importa solo los martes a las 16:00. Los partidos en casa con hora ya puesta en Futgal entran como Fijo.") : h("span", {class:"meta"}, fi.error || ""),
+        fi.ok ? h("span", {class:"meta"}, fi.importados + " partidos de nuestros equipos (" + fi.nuevos + " nuevos) y " + fi.rivales + " de rivales vigilados. Se importa los martes a las 19:00 y cada vez que se abre Generar calendario (ahí manda siempre lo último de Futgal). Los partidos en casa con hora ya puesta en Futgal entran como Fijo.") : h("span", {class:"meta"}, fi.error || ""),
+        h("div", {class:"row"}, botonFutgal()),
         (fi.cambios || []).length ? h("div", null, h("b", null, "Cambios de Futgal en partidos confirmados o fijados:"), h("ul", {style:"margin:4px 0 0;padding-left:18px"}, fi.cambios.map(c => h("li", null, c)))) : null,
         (fi.sinEquipo || []).length ? h("div", null, h("b", null, "Sin equipo en el panel (añádelo en Equipos):"), h("ul", {style:"margin:4px 0 0;padding-left:18px"}, fi.sinEquipo.map(c => h("li", null, c)))) : null); })(),
     h("div", {class:"daybar"}, h("div", {class:"grid", style:"gap:6px;min-width:0"}, lab("Fin de semana"), wkChips()),
@@ -950,11 +952,37 @@ function viewMails(){
     list.length ? h("div", {class:"grid"}, list.map(card)) : h("div", {class:"empty"}, filtro === "pendientes" ? "No hay correos pendientes." : "Aún no hay correos gestionados."))];
 }
 
+/* ----- Bot de Futgal bajo demanda ----- */
+// El bot entra solo los martes a las 19:00. Además, al pulsar Generar calendario vuelve a Futgal,
+// lo compara con lo que bajó el martes y se queda siempre con lo último (aunque esté confirmado o fijo).
+let futgalBusy = false;
+async function traerFutgal(){
+  if (futgalBusy || !SB) return; futgalBusy = true; render(); toast("Entrando en Futgal…");
+  try {
+    const {data, error} = await SB.functions.invoke("futgal-calendario", {body:{ultimo:true}}); if (error) throw error;
+    await SB.functions.invoke("futgal-escudos", {body:{}}).catch(() => null);
+    toast(!data || !data.ok ? "Futgal no respondió bien: mira el aviso en Programar." : (data.cambios || []).length ? data.cambios.length + " cambio(s) en Futgal desde la última vez: ya actualizados." : "Futgal sin cambios: el calendario está al día.");
+  } catch (e){ toast("No se pudo entrar en Futgal ahora. Prueba en un rato."); }
+  futgalBusy = false; if (window.__recargar) await window.__recargar(); else render();
+}
+function botonFutgal(){ return h("button", {class:"btn ghost", type:"button", disabled: futgalBusy, onclick:() => traerFutgal()}, futgalBusy ? "Entrando en Futgal…" : "Traer ahora de Futgal"); }
+function estadoFutgal(){
+  const fi = S.config.futgal_import;
+  const cuando = fi ? new Date(fi.fecha).toLocaleString("es-ES", {weekday:"long", day:"numeric", month:"numeric", hour:"2-digit", minute:"2-digit"}) : "";
+  return h("div", {class:"card", style:"margin:0 0 12px;gap:6px"},
+    h("div", {class:"row", style:"justify-content:space-between"}, h("b", null, "Partidos de Futgal"),
+      futgalBusy ? h("span", {class:"pill steel"}, "Actualizando…") : fi ? h("span", {class:"pill " + (fi.ok ? "ok" : "bad")}, (fi.ok ? "" : "Error · ") + cuando) : h("span", {class:"pill bad"}, "Sin importar")),
+    h("span", {class:"meta"}, "El bot entra en Futgal los martes a las 19:00 y otra vez cada vez que se abre esta pantalla: compara con lo que había y se queda siempre con lo último. Los carteles con escudos llegan al móvil de Javi los martes después de las 19:00."),
+    fi && fi.ok && (fi.cambios || []).length ? h("div", null, h("b", null, "Cambios de Futgal en la última revisión:"), h("ul", {style:"margin:4px 0 0;padding-left:18px"}, fi.cambios.map(c => h("li", null, c)))) : null,
+    h("div", {class:"row"}, botonFutgal()));
+}
+
 /* ----- Generar ----- */
 function viewGenerar(){
   return [clubBar("Generar calendario"), dbNotice(), h("main", {class:"wrap"},
     h("h2", null, "¿Cómo quieres generar el calendario?"),
     h("p", {class:"lead"}, "Automático usa los días confirmados en Programar. Manual abre el diseñador anterior, para cuando falte algo o haya que partir de una imagen o PDF."),
+    estadoFutgal(),
     h("div", {class:"opts"},
       h("button", {class:"opt", type:"button", onclick:() => go("auto")}, h("span", {class:"pill ok tag"}, "Recomendado"), h("b", null, "Automáticamente"), h("span", null, "Crea el cartel del fin de semana con los partidos confirmados, en el estilo del club, listo para descargar.")),
       h("button", {class:"opt", type:"button", onclick:() => go("manual")}, h("span", {class:"pill steel tag"}, "Plan B"), h("b", null, "Manualmente"), h("span", null, "Abre el diseñador de calendarios del proyecto para editarlo a mano o rehacerlo desde una imagen o PDF.")))) ];

@@ -2,6 +2,8 @@
 // rivales vigilados de los dos próximos fines de semana y los deja en Programar → Jornada.
 // No toca partidos confirmados ni fijados: si Futgal los cambia, avisa.
 // Si Futgal ya trae la hora de un partido en casa, se toma como oficial y queda fijada.
+// Con { ultimo: true } (botón Generar calendario del panel) manda siempre lo último de Futgal:
+// compara con lo que había y actualiza también los confirmados o fijados, apuntando cada diferencia.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const BASE = "https://intranet.futgal.es";
@@ -96,7 +98,16 @@ Deno.serve(async (req) => {
         await sb.from("panel_docs").upsert({ col: "partidos", id, data: { ...nuevo, hora: p.hora || "", pabellonId: casa ? pabFor(p.campo) : "", fija: !!(casa && p.hora), estado: "propuesto" } });
         informe.nuevos++; continue;
       }
-      const bloqueado = cur.estado === "confirmado" || cur.fija;
+      if (opts.ultimo) {
+        const dif: string[] = [];
+        if (cur.fecha !== p.fecha) dif.push(`fecha ${cur.fecha} → ${p.fecha}`);
+        if (norm(cur.rival) !== norm(rival)) dif.push(`rival «${cur.rival}» → «${rival}»`);
+        if (!!cur.casa !== casa) dif.push(casa ? "ahora en casa" : "ahora fuera");
+        if (p.hora && (cur.hora || "") !== p.hora) dif.push(`hora ${cur.hora || "—"} → ${p.hora}`);
+        if (!casa && norm(cur.lugar || "") !== norm(p.campo)) dif.push(`campo «${cur.lugar || "—"}» → «${p.campo}»`);
+        if (dif.length) { const e = C.equipos[eid]; informe.cambios.push(`${e.categoria} ${e.nombre}: ${dif.join(", ")} (actualizado)`); }
+      }
+      const bloqueado = (cur.estado === "confirmado" || cur.fija) && !opts.ultimo;
       if (bloqueado) {
         const dif: string[] = [];
         if (cur.fecha !== p.fecha) dif.push(`fecha ${cur.fecha} → ${p.fecha}`);
@@ -132,11 +143,11 @@ Deno.serve(async (req) => {
     const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
     const { data: tgRow } = await sb.from("panel_docs").select("data").eq("col", "mails").eq("id", "_telegram").maybeSingle();
     const chat = (tgRow?.data as any)?.chat_id;
-    if (token && chat && !opts.silencio) {
+    if (token && chat && !opts.silencio && !(opts.ultimo && !informe.cambios.length)) {
       const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
       const lines = informe.ok
-        ? [`📅 <b>Jornada importada de Futgal</b>`, `${informe.importados} partidos de nuestros equipos (${informe.nuevos} nuevos) y ${informe.rivales} de rivales vigilados.`,
-           informe.cambios.length ? "⚠️ <b>Cambios en partidos ya confirmados o fijados:</b>\n" + informe.cambios.map((c: string) => "• " + esc(c)).join("\n") : "",
+        ? [opts.ultimo ? `📅 <b>Jornada revisada en Futgal (botón del panel)</b>` : `📅 <b>Jornada importada de Futgal</b>`, `${informe.importados} partidos de nuestros equipos (${informe.nuevos} nuevos) y ${informe.rivales} de rivales vigilados.`,
+           informe.cambios.length ? (opts.ultimo ? "🔄 <b>Futgal ha cambiado desde la última importación (ya actualizado en el panel):</b>\n" : "⚠️ <b>Cambios en partidos ya confirmados o fijados:</b>\n") + informe.cambios.map((c: string) => "• " + esc(c)).join("\n") : "",
            informe.sinEquipo.length ? "❓ <b>Sin equipo asignado en el panel:</b>\n" + informe.sinEquipo.map((c: string) => "• " + esc(c)).join("\n") : "",
            `<a href="https://hashtag5a.github.io/carnet-quinta-de-tui/panel/#programar">Abrir Programar calendario</a>`]
         : [`⚠️ <b>No se pudo importar la jornada de Futgal</b>`, esc(informe.error || "")];
