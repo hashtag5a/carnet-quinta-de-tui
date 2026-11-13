@@ -1099,14 +1099,14 @@ function viewAuto(){
             h("label", {class:"check"}, h("input", {type:"radio", name:"fmt", checked: ui.formato === "post", onchange:() => { ui.formato = "post"; ui.pagina = 0; render(); }}), "Post 4:5 · de 3 en 3 partidos (" + pages.length + (pages.length === 1 ? " imagen)" : " imágenes)"))),
           ui.formato === "post" && pages.length > 1 ? h("div", null, h("h3", null, "Imagen"),
             h("div", {class:"chips"}, pages.map((pg, i) => h("button", {class:"chip-btn", type:"button", "aria-pressed": i === ui.pagina ? "true" : "false", onclick:() => { ui.pagina = i; render(); }}, (i + 1) + " · " + ddmm(pg.fecha))))) : null,
-          ui.formato === "post" ? h("span", {class:"meta"}, "Cada imagen lleva el día como cabecera.") :
+          ui.formato === "post" ? h("span", {class:"meta"}, "Cada imagen lleva el día como cabecera. «Guardar las " + pages.length + "» abre en el móvil el menú de compartir con todas (Guardar en galería, Instagram, WhatsApp…); en el ordenador baja un ZIP.") :
           h("label", {class:"f"}, "Texto de cabecera", h("input", {type:"text", id:"gen-header", value: header, oninput:(ev) => { ui.header[hk] = ev.target.value.toUpperCase(); draw(); }}))),
         h("div", {class:"card"},
           h("h3", null, n + " partido(s) en el cartel"),
           h("div", {class:"scroll"}, h("table", {class:"mini"}, h("tr", null, h("th", null, "Día"), h("th", null, "Hora"), h("th", null, "Categoría"), h("th", null, "Partido")),
             data.matches.map(m => h("tr", null, h("td", null, fechaLarga(m.fecha)), h("td", null, m.time), h("td", null, m.cat), h("td", null, m.home.name + " – " + m.away.name, h("div", {class:"meta"}, m.venue)))))),
           h("div", {class:"row"}, h("button", {class:"btn", type:"button", id:"dl-btn", onclick:() => download()}, ui.formato === "post" && pages.length > 1 ? "Descargar esta imagen" : "Descargar imagen (PNG)"),
-            ui.formato === "post" && pages.length > 1 ? h("button", {class:"btn", type:"button", onclick:() => downloadAll()}, "Descargar las " + pages.length) : null,
+            ui.formato === "post" && pages.length > 1 ? h("button", {class:"btn", type:"button", onclick:() => downloadAll()}, "Guardar las " + pages.length) : null,
             h("button", {class:"btn ghost", type:"button", onclick:() => go("manual")}, "Hacerlo a mano")),
           null)),
       h("div", {class:"poster"}, canvas)));
@@ -1134,17 +1134,43 @@ function viewAuto(){
     await Promise.all([fontsReady, cargarEscudos(data)]);
     if (await guardar(await blobDe(cv), nombre(ui.pagina))) toast("Imagen descargada.");
   }
+  // Los móviles solo dejan bajar un archivo por pulsación: las imágenes van todas juntas.
+  // Si el móvil puede compartir archivos, se abre el menú de compartir (Guardar en galería, Instagram, WhatsApp…);
+  // si no, se baja un ZIP con todas.
   async function downloadAll(){
-    if (!dl){ toast("Las descargas no están disponibles en esta vista."); return; }
     await Promise.all([fontsReady, cargarEscudos(data)]);
-    const cv = document.createElement("canvas");
+    const cv = document.createElement("canvas"), files = [];
     for (let i = 0; i < pages.length; i++){
       drawPost(cv, pageHeader(pages[i]), {matches: pages[i].matches});
-      if (!(await guardar(await blobDe(cv), nombre(i)))) return;
-      await new Promise(r => setTimeout(r, 700));
+      const b = await blobDe(cv); if (b) files.push(new File([b], nombre(i), {type:"image/png"}));
     }
-    toast(pages.length + " imágenes descargadas.");
+    if (!files.length){ toast("No se pudieron crear las imágenes."); return; }
+    try {
+      if (navigator.canShare && navigator.canShare({files})){ await navigator.share({files, title:"Calendario A Quinta"}); return; }
+    } catch (e){ if (e && e.name === "AbortError") return; }
+    if (!dl){ toast("Las descargas no están disponibles en esta vista."); return; }
+    if (await guardar(await zipStore(files), "a-quinta-" + ui.weekend + "-4x5.zip")) toast(files.length + " imágenes descargadas en un ZIP.");
   }
+}
+
+/* ---------- ZIP sin compresión (las PNG ya van comprimidas) ---------- */
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++){ let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = u => { let c = 0xFFFFFFFF; for (let i = 0; i < u.length; i++) c = CRC[(c ^ u[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+async function zipStore(files){
+  const enc = new TextEncoder(), parts = [], central = []; let off = 0;
+  for (const f of files){
+    const data = new Uint8Array(await f.arrayBuffer()), name = enc.encode(f.name), crc = crc32(data);
+    const lh = new DataView(new ArrayBuffer(30));
+    [[0,0x04034b50,4],[4,20,2],[6,0x0800,2],[8,0,2],[10,0,2],[12,0x21,2],[14,crc,4],[18,data.length,4],[22,data.length,4],[26,name.length,2],[28,0,2]].forEach(([o,v,n]) => n === 4 ? lh.setUint32(o, v, true) : lh.setUint16(o, v, true));
+    parts.push(new Uint8Array(lh.buffer), name, data);
+    const ch = new DataView(new ArrayBuffer(46));
+    [[0,0x02014b50,4],[4,20,2],[6,20,2],[8,0x0800,2],[10,0,2],[12,0,2],[14,0x21,2],[16,crc,4],[20,data.length,4],[24,data.length,4],[28,name.length,2],[30,0,2],[32,0,2],[34,0,2],[36,0,2],[38,0,4],[42,off,4]].forEach(([o,v,n]) => n === 4 ? ch.setUint32(o, v, true) : ch.setUint16(o, v, true));
+    central.push(new Uint8Array(ch.buffer), name);
+    off += 30 + name.length + data.length;
+  }
+  const size = central.reduce((a, b) => a + b.length, 0), end = new DataView(new ArrayBuffer(22));
+  [[0,0x06054b50,4],[4,0,2],[6,0,2],[8,files.length,2],[10,files.length,2],[12,size,4],[16,off,4],[20,0,2]].forEach(([o,v,n]) => n === 4 ? end.setUint32(o, v, true) : end.setUint16(o, v, true));
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], {type:"application/zip"});
 }
 
 /* ---------- dibujo del cartel ---------- */
