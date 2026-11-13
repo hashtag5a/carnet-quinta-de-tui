@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
     const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
     const { data: tgRow } = await sb.from("panel_docs").select("data").eq("col", "mails").eq("id", "_telegram").maybeSingle();
     const chat = (tgRow?.data as any)?.chat_id;
-    if (token && chat && !opts.silencio && !(opts.ultimo && !informe.cambios.length)) {
+    if (token && chat && !opts.silencio && !opts.ultimo) { // solo la entrada del martes avisa
       // Aviso corto: solo que el calendario está listo y el enlace a Generar calendario.
       const lines = informe.ok
         ? [`🗓️ <b>Calendario A Quinta listo</b>`, `<a href="https://hashtag5a.github.io/carnet-quinta-de-tui/panel/#auto">Abrir Generar calendario</a>`]
