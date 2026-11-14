@@ -1081,6 +1081,8 @@ function viewAuto(){
   const pages = data.days.flatMap(d => { const out = []; for (let i = 0; i < d.matches.length; i += 3) out.push({fecha: d.matches[0].fecha, matches: d.matches.slice(i, i + 3)}); return out; });
   if (!(ui.pagina >= 0 && ui.pagina < pages.length)) ui.pagina = 0;
   const pageHeader = pg => headerFor([pg.fecha]);
+  const movil = matchMedia("(pointer: coarse)").matches;
+  if (ui.dlKey !== ui.weekend + ui.formato){ ui.dlKey = ui.weekend + ui.formato; ui.dlNext = 0; }
   const hk = ui.weekend;
   const header = ui.header[hk] ?? data.defHeader;
   const canvas = h("canvas", {id:"poster", width:"1080", height: ui.formato === "post" ? "1350" : "1920", role:"img", "aria-label":"Cartel del calendario " + header});
@@ -1099,14 +1101,15 @@ function viewAuto(){
             h("label", {class:"check"}, h("input", {type:"radio", name:"fmt", checked: ui.formato === "post", onchange:() => { ui.formato = "post"; ui.pagina = 0; render(); }}), "Post 4:5 · de 3 en 3 partidos (" + pages.length + (pages.length === 1 ? " imagen)" : " imágenes)"))),
           ui.formato === "post" && pages.length > 1 ? h("div", null, h("h3", null, "Imagen"),
             h("div", {class:"chips"}, pages.map((pg, i) => h("button", {class:"chip-btn", type:"button", "aria-pressed": i === ui.pagina ? "true" : "false", onclick:() => { ui.pagina = i; render(); }}, (i + 1) + " · " + ddmm(pg.fecha))))) : null,
-          ui.formato === "post" ? h("span", {class:"meta"}, "Cada imagen lleva el día como cabecera. «Guardar las " + pages.length + "» abre en el móvil el menú de compartir con todas (Guardar en galería, Instagram, WhatsApp…); en el ordenador baja un ZIP.") :
+          ui.formato === "post" ? h("span", {class:"meta"}, movil ? "Cada imagen lleva el día como cabecera. El móvil solo deja guardar una imagen por pulsación: pulsa «Guardar imagen» " + pages.length + " veces y quedan en Descargas y en la galería." : "Cada imagen lleva el día como cabecera.") :
           h("label", {class:"f"}, "Texto de cabecera", h("input", {type:"text", id:"gen-header", value: header, oninput:(ev) => { ui.header[hk] = ev.target.value.toUpperCase(); draw(); }}))),
         h("div", {class:"card"},
           h("h3", null, n + " partido(s) en el cartel"),
           h("div", {class:"scroll"}, h("table", {class:"mini"}, h("tr", null, h("th", null, "Día"), h("th", null, "Hora"), h("th", null, "Categoría"), h("th", null, "Partido")),
             data.matches.map(m => h("tr", null, h("td", null, fechaLarga(m.fecha)), h("td", null, m.time), h("td", null, m.cat), h("td", null, m.home.name + " – " + m.away.name, h("div", {class:"meta"}, m.venue)))))),
           h("div", {class:"row"}, h("button", {class:"btn", type:"button", id:"dl-btn", onclick:() => download()}, ui.formato === "post" && pages.length > 1 ? "Descargar esta imagen" : "Descargar imagen (PNG)"),
-            ui.formato === "post" && pages.length > 1 ? h("button", {class:"btn", type:"button", onclick:() => downloadAll()}, "Guardar las " + pages.length) : null,
+            ui.formato === "post" && pages.length > 1 ? (movil ? h("button", {class:"btn", type:"button", onclick:() => guardarSiguiente()}, (ui.dlNext || 0) < pages.length ? "Guardar imagen " + ((ui.dlNext || 0) + 1) + " de " + pages.length : "✓ Guardadas las " + pages.length + " · otra vez")
+                   : h("button", {class:"btn", type:"button", onclick:() => downloadAll()}, "Descargar las " + pages.length + " (ZIP)")) : null,
             h("button", {class:"btn ghost", type:"button", onclick:() => go("manual")}, "Hacerlo a mano")),
           null)),
       h("div", {class:"poster"}, canvas)));
@@ -1137,6 +1140,16 @@ function viewAuto(){
   // Los móviles solo dejan bajar un archivo por pulsación: las imágenes van todas juntas.
   // Si el móvil puede compartir archivos, se abre el menú de compartir (Guardar en galería, Instagram, WhatsApp…);
   // si no, se baja un ZIP con todas.
+  // Móvil: una imagen por pulsación (el navegador no deja bajar varias de golpe). Se guardan como archivo
+  // en Descargas, y la galería las muestra.
+  async function guardarSiguiente(){
+    if (!dl){ toast("Las descargas no están disponibles en esta vista."); return; }
+    let i = ui.dlNext || 0; if (i >= pages.length) i = 0;
+    await Promise.all([fontsReady, cargarEscudos(data)]);
+    const cv = document.createElement("canvas"); drawPost(cv, pageHeader(pages[i]), {matches: pages[i].matches});
+    if (await guardar(await blobDe(cv), nombre(i))){ ui.dlNext = i + 1; ui.pagina = i; toast("Imagen " + (i + 1) + " de " + pages.length + " guardada."); render(); }
+  }
+  // Ordenador: un ZIP con todas.
   async function downloadAll(){
     await Promise.all([fontsReady, cargarEscudos(data)]);
     const cv = document.createElement("canvas"), files = [];
@@ -1145,9 +1158,6 @@ function viewAuto(){
       const b = await blobDe(cv); if (b) files.push(new File([b], nombre(i), {type:"image/png"}));
     }
     if (!files.length){ toast("No se pudieron crear las imágenes."); return; }
-    try {
-      if (navigator.canShare && navigator.canShare({files})){ await navigator.share({files, title:"Calendario A Quinta"}); return; }
-    } catch (e){ if (e && e.name === "AbortError") return; }
     if (!dl){ toast("Las descargas no están disponibles en esta vista."); return; }
     if (await guardar(await zipStore(files), "a-quinta-" + ui.weekend + "-4x5.zip")) toast(files.length + " imágenes descargadas en un ZIP.");
   }

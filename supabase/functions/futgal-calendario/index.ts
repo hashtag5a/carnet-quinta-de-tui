@@ -54,11 +54,12 @@ const letterOf = (s: string) => ((s.match(/"([A-Z])"\s*$/) || s.match(/"([A-Z])"
 Deno.serve(async (req) => {
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const opts = await req.json().catch(() => ({}));
-  // Quién llama: el cron del martes usa la clave anónima; el panel, la sesión de un usuario.
-  // Desde el panel siempre manda lo último de Futgal y nunca avisa por Telegram.
-  const rol = (() => { try { const t = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "").split(".")[1].replace(/-/g, "+").replace(/_/g, "/"); return JSON.parse(atob(t + "===".slice((t.length + 3) % 4))).role || ""; } catch { return ""; } })();
-  if (rol === "authenticated") opts.ultimo = true;
-  const informe: Record<string, any> = { fecha: new Date().toISOString(), importados: 0, nuevos: 0, actualizados: 0, sinEquipo: [], cambios: [], rivales: 0 };
+  // Solo la entrada programada del martes lleva { martes: true }: es la única que respeta lo
+  // confirmado/fijado y la única que avisa por Telegram. Cualquier otra llamada (el panel al abrir
+  // Generar calendario, «Traer ahora de Futgal»…) se queda siempre con lo último y no avisa.
+  const martes = opts.martes === true;
+  if (!martes) opts.ultimo = true;
+  const informe: Record<string, any> = { fecha: new Date().toISOString(), modo: martes ? "martes" : "panel", importados: 0, nuevos: 0, actualizados: 0, sinEquipo: [], cambios: [], rivales: 0 };
   try {
     await text(await go("/nfg/"));
     await text(await go("/nfg/NLogin", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ NUser: Deno.env.get("FUTGAL_USER")!, NPass: Deno.env.get("FUTGAL_PASS")! }).toString() }));
@@ -147,7 +148,7 @@ Deno.serve(async (req) => {
     const token = Deno.env.get("TELEGRAM_BOT_TOKEN");
     const { data: tgRow } = await sb.from("panel_docs").select("data").eq("col", "mails").eq("id", "_telegram").maybeSingle();
     const chat = (tgRow?.data as any)?.chat_id;
-    if (token && chat && !opts.silencio && !opts.ultimo && rol !== "authenticated") { // solo la entrada del martes avisa
+    if (token && chat && martes && !opts.silencio) { // solo la entrada del martes avisa
       // Aviso corto: solo que el calendario está listo y el enlace a Generar calendario.
       const lines = informe.ok
         ? [`🗓️ <b>Calendario A Quinta listo</b>`, `<a href="https://hashtag5a.github.io/carnet-quinta-de-tui/panel/#auto">Abrir Generar calendario</a>`]
