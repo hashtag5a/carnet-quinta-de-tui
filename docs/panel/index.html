@@ -561,9 +561,12 @@ function crearExterno(n, ct, d, enlace){
   return rid;
 }
 function ligaGrupo(e){
-  const c = String(e.competicion || "").trim(); if (!c) return {liga:"", grupo:""};
-  const m = c.match(/^(.*?)[\s\-·,]*\b(GRUPO|GR\.?|XRUPO)\s*([\w\-]+)(.*)$/i);
-  return m ? {liga:(m[1] + " " + m[4]).replace(/\s+/g, " ").trim(), grupo:m[3]} : {liga:c, grupo:""};
+  const c = String(e.competicion || "").replace(/\s+/g, " ").trim(); if (!c) return {liga:"", grupo:""};
+  const g = (c.match(/GRUPO\s*([\w\-]+)/i) || [])[1] || "";
+  const sin = c.replace(/[>,\s]*GRUPO\s*[\w\-]+/i, "").replace(/>/g, " ");
+  const [izq, der] = sin.split("|").map(x => (x || "").trim());
+  const liga = (izq || "").replace(/^[^-]+-\s*/, "").replace(/\s+,/g, ",").replace(/[,\s]+$/, "");
+  return {liga: liga + (der ? " · " + der.replace(/\s+/g, " ").trim() : ""), grupo:g};
 }
 
 function fichaEquipo(id, e){
