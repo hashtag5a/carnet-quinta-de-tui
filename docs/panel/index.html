@@ -198,8 +198,28 @@ body{background:var(--bg)}
 .cnt-name{font-family:var(--display);font-weight:700;font-size:clamp(20px,5vw,32px);line-height:1.05;margin-top:4px}
 .cnt-val{font-family:var(--display);font-weight:600;font-size:clamp(15px,3.4vw,20px)}
 .cnt-tag{margin-left:auto;white-space:nowrap;position:relative;z-index:1;font-family:var(--display);font-weight:700;font-size:clamp(11px,2.4vw,14px);letter-spacing:1.5px;opacity:.85}
+.ayuda .lead{margin-bottom:12px}
+.info{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;border:1.5px solid var(--muted);background:transparent;color:var(--muted);font:italic 700 12px Georgia,serif;cursor:pointer;vertical-align:1px;padding:0}
+.info[aria-expanded="true"],.info:hover{border-color:var(--ink);color:var(--ink)}
+.ayuda-mas{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:4px 14px;margin:-4px 0 16px;max-width:70ch;font-size:14px;color:var(--muted)}
+.ayuda-mas p{margin:8px 0}
+.eqlist{display:flex;flex-direction:column;gap:8px}
+.eqrow{background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.eqrow.open{border-color:var(--steel)}
+.eqhead{display:flex;align-items:center;gap:10px;padding:10px 12px}
+.eqhead .prio{min-width:22px;text-align:center;color:var(--muted);font-variant-numeric:tabular-nums}
+.eqname{flex:1;min-width:0;display:flex;justify-content:space-between;align-items:center;gap:8px;background:none;border:0;text-align:left;cursor:pointer;padding:4px 0;font-size:15px}
+.eqname .chev{color:var(--muted)}
+.ficha{border-top:1px solid var(--line);padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.datos{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.dato{background:var(--surface2);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.dato span{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.dato b{overflow-wrap:anywhere}
+.chip-c{display:inline-flex;align-items:center;gap:6px;background:var(--rival);border:1px solid var(--rival-line);border-radius:999px;padding:4px 10px;font-size:13px}
+.chip-c.propio{background:var(--steel-soft);border-color:var(--steel)}
+.chip-c button{background:none;border:0;cursor:pointer;font-size:15px;line-height:1;padding:0 2px;color:inherit}
+@media (max-width:600px){.eqhead{flex-wrap:wrap}.eqname{flex-basis:calc(100% - 40px)}}
 </style>
-
 <div id="app"></div>
 <div id="toast" class="toast" hidden></div>
 
@@ -323,7 +343,7 @@ function viewPermisos(){
   const save = (row) => SB.from("panel_permisos").upsert(row).then(({error}) => { if (error) toast("No se pudo guardar."); loadPerms(); });
   return [clubBar("Permisos"), h("main", {class:"wrap"},
     h("h2", null, "Permisos"),
-    h("p", {class:"lead"}, "Quién entra al panel y qué parte ve cada persona. Entran con su email y un código; no necesitan cuenta de nada. Tú (administrador principal) lo ves todo."),
+    ayuda("permisos", "Quién entra al panel y qué parte ve cada persona.", ["Entran con su email y un código que les llega al correo; no necesitan cuenta de nada.", "Tú, como administrador principal, lo ves todo."]),
     h("div", {class:"card new", style:"margin-bottom:12px"},
       h("h3", null, "Dar acceso a una persona"),
       h("div", {class:"fields", style:"align-items:end"},
@@ -434,7 +454,7 @@ function proponer(wk){
     if (best){ occ.push({fecha:best.fecha, pab:best.pab, s:best.s, e:best.s + d, eid:p.equipoId}); put("partidos", pid, {...p, fecha:best.fecha, hora:toHM(best.s), pabellonId:best.pab}); }
     else { sin++; put("partidos", pid, {...p, hora:""}); }
   });
-  toast(sin ? sin + " partido(s) sin hueco libre. Revisa horas de pabellón o incompatibilidades." : "Horarios propuestos sin coincidencias.");
+  toast(sin ? sin + " partido(s) sin hueco libre. Revisa horas de pabellón o conflictos." : "Horarios propuestos sin coincidencias.");
 }
 
 /* ---------- vistas ---------- */
@@ -457,7 +477,7 @@ function viewHome(){
     h("h1", null, "A QUINTA"),
     h("div", {class:"motto"}, "COMPETICIÓN", h("i"), "FORMACIÓN", h("i"), "FUTURO"),
     h("div", {class:"bigbtns"},
-      can("programar") ? h("button", {class:"bigbtn", type:"button", onclick:() => go("programar")}, h("b", null, "Programar calendario"), h("span", null, "Equipos, incompatibilidades, normas, horas de pabellón y la jornada sin coincidencias.")) : null,
+      can("programar") ? h("button", {class:"bigbtn", type:"button", onclick:() => go("programar")}, h("b", null, "Programar calendario"), h("span", null, "Equipos, conflictos, normas, horas de pabellón y la jornada sin coincidencias.")) : null,
       can("generar") ? h("button", {class:"bigbtn", type:"button", onclick:() => { go("generar"); traerFutgal(); }}, h("b", null, "Generar calendario"), h("span", null, "El cartel del fin de semana, automático desde lo confirmado o manual.")) : null,
       can("correo") ? h("button", {class:"bigbtn", type:"button", onclick:() => go("mails")}, h("b", null, "Correo Futgal", (() => { const n = Object.entries(S.mails).filter(([id,m]) => !String(id).startsWith("_") && m.estado !== "gestionado").length; return n ? h("span", {class:"pill bad", style:"margin-left:8px;vertical-align:middle;font-family:var(--body)"}, n + (n === 1 ? " pendiente" : " pendientes")) : null; })()), h("span", null, "Los mensajes nuevos del buzón de Futgal, con titular y resumen para decidir qué hacer.")) : null,
       can("carnet") ? h("a", {class:"bigbtn", href:"../#gestion", style:"text-decoration:none"}, h("b", null, "Carnet de socio"), h("span", null, "Socios y familias, cuotas, puntos y premios, comercios, porra y lotería.")) : null,
@@ -473,9 +493,9 @@ function dbNotice(){
 }
 
 /* ----- Programar ----- */
-const TABS = [["seleccion","Equipos"],["incompat","Incompatibilidades"],["normas","Normas"],["pabellones","Horas de pabellón"],["calendario","Jornada"]];
+const TABS = [["seleccion","Equipos"],["conflictos","Equipos en conflicto"],["normas","Normas"],["pabellones","Horas de pabellón"],["calendario","Jornada"]];
 function viewProgramar(){
-  const body = ui.tab === "seleccion" ? tabSeleccion() : ui.tab === "incompat" ? tabIncompat() : ui.tab === "normas" ? tabNormas() : ui.tab === "pabellones" ? tabPabellones() : tabCalendario();
+  const body = ui.tab === "seleccion" ? tabSeleccion() : ui.tab === "conflictos" ? tabConflictos() : ui.tab === "normas" ? tabNormas() : ui.tab === "pabellones" ? tabPabellones() : tabCalendario();
   return [clubBar("Programar calendario"), dbNotice(), h("main", {class:"wrap"},
     h("nav", {class:"tabs", role:"tablist", "aria-label":"Pasos"}, TABS.map(([k,l],i) => h("button", {class:"tab", role:"tab", type:"button", "aria-selected": ui.tab === k ? "true" : "false", onclick:() => { ui.tab = k; ui.confirmDel = null; render(); }}, h("span", {class:"n"}, i+1), l))),
     body)];
@@ -497,7 +517,7 @@ function lockBar(){
   return h("div", {class:"footbar", style:"margin-bottom:16px"},
     h("div", {class:"grid", style:"gap:4px"},
       b.confirmado ? h("span", {class:"pill ok"}, "Configuración confirmada" + (b.fecha ? " el " + fechaLarga(b.fecha) : "")) : h("span", {class:"pill warn"}, "Configuración en modificación"),
-      h("span", {class:"meta"}, (b.fase ? "Competición: " + b.fase + ". " : "") + "Equipos, incompatibilidades y normas se confirman juntos.")),
+      h("span", {class:"meta"}, (b.fase ? "Competición: " + b.fase + ". " : "") + "Equipos, conflictos y normas se confirman juntos.")),
     b.confirmado ? h("button", {class:"btn ghost", type:"button", onclick:() => put("config", "bloque", {...b, confirmado:false})}, "Modificar")
       : h("div", {class:"row", style:"align-items:flex-end"},
           h("label", {class:"f", style:"min-width:220px"}, "Competición o fase", h("input", {type:"text", id:"bl-fase", "data-draft":"", value:b.fase, placeholder:"Liga · 1ª fase, Copa Delegación…"})),
@@ -509,136 +529,198 @@ function lockBar(){
 const locked = () => bloque().confirmado;
 const lab = (t) => h("span", {class:"meta", style:"font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase"}, t);
 
-/* --- 1 · Equipos --- */
-function tabSeleccion(){
-  const L = locked(); const rivs = sorted("rivales"), eqs = sorted("equipos");
-  let rivBlock, eqBlock;
-  if (L){
-    rivBlock = rivs.length ? h("div", {class:"scroll"}, h("table", {class:"mini"}, h("tr", null, h("th", null, "Rival vigilado"), h("th", null, "Categoría"), h("th", null, "Min"), h("th", null, "Futgal")),
-      rivs.map(([,r]) => h("tr", null, h("td", null, r.nombre), h("td", null, r.categoria), h("td", null, durRiv(r)), h("td", null, r.enlace ? h("a", {href:r.enlace, target:"_blank", rel:"noopener"}, "Ver ↗") : "—")))))
-      : h("span", {class:"meta"}, "Sin rivales a vigilar.");
-    eqBlock = h("div", {class:"scroll"}, h("table", {class:"mini"}, h("tr", null, h("th", null, "Prioridad"), h("th", null, "Categoría"), h("th", null, "Equipo"), h("th", null, "Min"), h("th", null, "Autonómica")),
-      eqs.map(([,e],i) => h("tr", null, h("td", null, i+1), h("td", null, e.categoria), h("td", null, e.nombre), h("td", null, dur(e)), h("td", null, e.autonomica ? "Sí" : "")))));
-  } else {
-    const cols = "align-items:end;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 90px minmax(0,1.2fr) auto";
-    rivBlock = h("div", {class:"grid", style:"gap:8px"},
-      rivs.map(([id,r]) => h("div", {class:"fields", style:cols},
-        h("label", {class:"f"}, "Rival vigilado", h("input", {type:"text", value:r.nombre, onchange:(ev) => patch("rivales", id, {nombre: ev.target.value.trim()})})),
-        h("label", {class:"f"}, "Categoría", h("input", {type:"text", list:"cats", value:r.categoria, onchange:(ev) => patch("rivales", id, {categoria: ev.target.value.trim().toUpperCase()})})),
-        h("label", {class:"f"}, "Min", h("input", {type:"number", min:"30", max:"180", step:"5", value:String(durRiv(r)), onchange:(ev) => patch("rivales", id, {duracion: Number(ev.target.value) || 60})})),
-        h("label", {class:"f"}, "Enlace Futgal", h("input", {type:"url", value:r.enlace || "", placeholder:"Opcional", onchange:(ev) => patch("rivales", id, {enlace: ev.target.value.trim()})})),
-        delBtn("riv:"+id, () => { del("rivales", id); Object.entries(S.equipos).forEach(([eid,e]) => { if ((e.evitar||[]).includes(id)) patch("equipos", eid, {evitar: e.evitar.filter(x => x !== id)}); }); }, "Quitar rival"))),
-      h("div", {class:"fields card new", style:cols + ";padding:12px"},
-        h("label", {class:"f"}, "Nuevo rival", h("input", {type:"text", id:"nr-nombre", "data-draft":"", placeholder:"Ej.: C.D. Ribadelouro"})),
-        h("label", {class:"f"}, "Categoría", h("input", {type:"text", id:"nr-cat", "data-draft":"", list:"cats", placeholder:"Ej.: JUVENIL 3ª"})),
-        h("label", {class:"f"}, "Min", h("input", {type:"number", id:"nr-dur", "data-draft":"", min:"30", max:"180", step:"5", placeholder:"60"})),
-        h("label", {class:"f"}, "Enlace Futgal", h("input", {type:"url", id:"nr-link", "data-draft":"", placeholder:"Opcional"})),
-        h("button", {class:"btn", type:"button", onclick:() => {
-          const n = val("nr-nombre"), c = val("nr-cat").toUpperCase(); if (!n || !c){ toast("Escribe el rival y la categoría."); return; }
-          put("rivales", uid(), {nombre:n, categoria:c, duracion:Number(val("nr-dur")) || cfg().durRival, enlace:val("nr-link"), orden:rivs.length});
-          ["nr-nombre","nr-cat","nr-dur","nr-link"].forEach(i => document.getElementById(i).value = "");
-        }}, "Añadir")));
-    const move = (i, dir) => { const a = eqs[i], z = eqs[i+dir]; if (!a || !z) return; put("equipos", a[0], {...a[1], orden:i+dir}); put("equipos", z[0], {...z[1], orden:i}); };
-    const toTop = (i) => eqs.forEach(([id,e],j) => put("equipos", id, {...e, orden: j === i ? 0 : (j < i ? j+1 : j)}));
-    eqBlock = h("div", {class:"scroll card", style:"padding:0"}, h("table", {class:"plan", style:"min-width:720px"},
-      h("thead", null, h("tr", null, ["Prioridad","Categoría","Equipo","Min","Autonómica",""].map(t => h("th", null, t)))),
-      h("tbody", null, eqs.map(([id,e],i) => h("tr", null,
-        h("td", null, h("span", {class:"row", style:"flex-wrap:nowrap"}, h("b", {style:"min-width:22px"}, i+1),
-          h("button", {class:"btn ghost small", type:"button", "aria-label":"Subir prioridad", disabled:i === 0, onclick:() => move(i,-1)}, "↑"),
-          h("button", {class:"btn ghost small", type:"button", "aria-label":"Bajar prioridad", disabled:i === eqs.length-1, onclick:() => move(i,1)}, "↓"),
-          h("button", {class:"btn ghost small", type:"button", title:"Poner el primero", disabled:i === 0, onclick:() => toTop(i)}, "1º"))),
-        h("td", null, h("input", {type:"text", list:"cats", value:e.categoria, "aria-label":"Categoría", onchange:(ev) => patch("equipos", id, {categoria: ev.target.value.trim().toUpperCase()})})),
-        h("td", null, h("input", {type:"text", value:e.nombre, "aria-label":"Equipo", onchange:(ev) => patch("equipos", id, {nombre: ev.target.value.trim()})})),
-        h("td", null, h("input", {type:"number", min:"30", max:"180", step:"5", style:"width:80px", value:String(dur(e)), "aria-label":"Duración en minutos", onchange:(ev) => patch("equipos", id, {duracion: Number(ev.target.value) || 60})})),
-        h("td", null, h("label", {class:"check"}, h("input", {type:"checkbox", checked:!!e.autonomica, onchange:(ev) => patch("equipos", id, {autonomica: ev.target.checked})}), "Sí")),
-        h("td", null, delBtn("eq:"+id, () => del("equipos", id), "Quitar equipo"))))),
-      h("tfoot", null, h("tr", null,
-        h("td", null, h("span", {class:"meta"}, "Nuevo")),
-        h("td", null, h("input", {type:"text", id:"ne-cat", "data-draft":"", list:"cats", placeholder:"Ej.: ALEVÍN 1ª"})),
-        h("td", null, h("input", {type:"text", id:"ne-nombre", "data-draft":"", value:"A Quinta F.S."})),
-        h("td", null, h("input", {type:"number", id:"ne-dur", "data-draft":"", min:"30", max:"180", step:"5", style:"width:80px", placeholder:"60"})),
-        h("td"),
-        h("td", null, h("button", {class:"btn", type:"button", onclick:() => {
-          const c = val("ne-cat").toUpperCase(), n = val("ne-nombre"); if (!c || !n){ toast("Escribe la categoría y el equipo."); return; }
-          put("equipos", uid(), {nombre:n, categoria:c, duracion:Number(val("ne-dur")) || 60, evitar:[], evitarEq:[], orden:eqs.length}); document.getElementById("ne-cat").value = "";
-        }}, "Añadir"))))));
-  }
-  return h("section", null,
-    h("h2", null, "Equipos"),
-    h("p", {class:"lead"}, "Nuestros equipos y los rivales que vigilamos, con lo que dura cada partido. La prioridad decide quién elige hueco primero: el 1º marca el calendario del resto."),
-    catList(), lockBar(),
-    h("h2", {style:"font-size:20px"}, "Nuestros equipos"), eqBlock,
-    h("h2", {style:"font-size:20px"}, "Rivales vigilados"), rivBlock);
+/* --- Ayuda: una línea y una «i» que despliega el resto --- */
+function ayuda(key, corto, largo){
+  const open = ui.ayuda === key;
+  return h("div", {class:"ayuda"},
+    h("p", {class:"lead"}, corto, " ",
+      h("button", {class:"info", type:"button", "aria-label":"Más información", "aria-expanded": open ? "true" : "false", title:"Más información", onclick:() => { ui.ayuda = open ? null : key; render(); }}, "i")),
+    open ? h("div", {class:"ayuda-mas"}, [].concat(largo).map(t => h("p", null, t))) : null);
 }
 
-/* --- 2 · Incompatibilidades --- */
+/* --- Conflictos de un equipo nuestro --- */
+const rivTxt = r => r.nombre + " · " + r.categoria;
+const shortEq = e => e.categoria + (/"(\w)"/.test(e.nombre || "") ? ' "' + e.nombre.match(/"(\w)"/)[1] + '"' : "");
+const extDe = eid => ((S.equipos[eid] || {}).evitar || []).filter(rid => S.rivales[rid]);
+const nConflictos = eid => extDe(eid).length + incompat(eid).length;
 function addEvitar(eid, rid){ const e = S.equipos[eid]; if (!e || !rid) return; const s = new Set(e.evitar || []); s.add(rid); patch("equipos", eid, {evitar:[...s]}); }
 function quitarEvitar(eid, rid){ const e = S.equipos[eid]; if (!e) return; patch("equipos", eid, {evitar:(e.evitar || []).filter(x => x !== rid)}); }
-function tabIncompat(){
+function setPropio(id, oid, on){
+  const e = S.equipos[id], o = S.equipos[oid]; if (!e || !o) return;
+  if (on){ const s = new Set(e.evitarEq || []); s.add(oid); patch("equipos", id, {evitarEq:[...s]}); }
+  else { patch("equipos", id, {evitarEq:(e.evitarEq || []).filter(x => x !== oid)}); if ((o.evitarEq || []).includes(id)) patch("equipos", oid, {evitarEq:o.evitarEq.filter(x => x !== id)}); }
+}
+const normTxt = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+function parecidos(n){ const k = normTxt(n); if (k.length < 3) return [];
+  return sorted("rivales").filter(([,r]) => { const m = normTxt(r.nombre); return m.includes(k) || k.includes(m); }); }
+/* Crea un equipo en conflicto (o reutiliza el que ya existe con ese nombre y categoría) */
+function crearExterno(n, ct, d, enlace){
+  const same = sorted("rivales").find(([,r]) => normTxt(r.nombre) === normTxt(n) && String(r.categoria).toUpperCase() === ct);
+  if (same) return same[0];
+  const rid = uid(); put("rivales", rid, {nombre:n, categoria:ct, duracion:Number(d) || cfg().durRival, enlace:enlace || "", orden:Object.keys(S.rivales).length});
+  return rid;
+}
+function ligaGrupo(e){
+  const c = String(e.competicion || "").trim(); if (!c) return {liga:"", grupo:""};
+  const m = c.match(/^(.*?)[\s\-·,]*\b(GRUPO|GR\.?|XRUPO)\s*([\w\-]+)(.*)$/i);
+  return m ? {liga:(m[1] + " " + m[4]).replace(/\s+/g, " ").trim(), grupo:m[3]} : {liga:c, grupo:""};
+}
+
+function fichaEquipo(id, e){
+  const L = locked(); const ext = extDe(id).map(rid => [rid, S.rivales[rid]]).sort((a,b) => rivTxt(a[1]).localeCompare(rivTxt(b[1])));
+  const props = incompat(id); const lg = ligaGrupo(e);
+  const libres = sorted("rivales").filter(([rid]) => !(e.evitar || []).includes(rid));
+  const otros = sorted("equipos").filter(([oid]) => oid !== id && !props.includes(oid));
+  const dato = (k, v) => h("div", {class:"dato"}, h("span", null, k), h("b", null, v || "—"));
+  const nuevo = ui.fichaNueva || "";
+  const sug = nuevo ? parecidos(nuevo).filter(([rid]) => !(e.evitar || []).includes(rid)) : [];
+  return h("div", {class:"ficha"},
+    h("div", {class:"datos"},
+      dato("Categoría", e.categoria), dato("Liga", lg.liga), dato("Grupo", lg.grupo),
+      dato("Duración", dur(e) + " min"), dato("Autonómica", e.autonomica ? "Sí" : "No")),
+    !e.competicion ? h("p", {class:"meta", style:"margin:0"}, "Liga y grupo se rellenan solos con la próxima entrada del bot en Futgal.") : null,
+    h("h3", {style:"margin-top:4px"}, "Equipos en conflicto"),
+    (ext.length || props.length) ? h("div", {class:"chips"},
+      ext.map(([rid,r]) => h("span", {class:"chip-c"}, r.nombre + " · " + r.categoria,
+        L ? null : h("button", {type:"button", "aria-label":"Quitar " + r.nombre, title:"Quitar", onclick:() => quitarEvitar(id, rid)}, "×"))),
+      props.map(oid => h("span", {class:"chip-c propio"}, "Nuestro " + shortEq(S.equipos[oid]),
+        L ? null : h("button", {type:"button", "aria-label":"Quitar", title:"Quitar", onclick:() => setPropio(id, oid, false)}, "×"))))
+      : h("p", {class:"meta", style:"margin:0"}, "Ningún equipo en conflicto."),
+    L ? h("p", {class:"meta", style:"margin:0"}, "Para añadir o quitar, pulsa Modificar arriba.") :
+    h("div", {class:"grid", style:"gap:10px"},
+      h("div", {class:"fields", style:"align-items:end;grid-template-columns:minmax(0,1fr) auto"},
+        h("label", {class:"f"}, "Añadir uno ya dado de alta", h("select", {id:"fx-sel-" + id, "data-draft":""},
+          h("option", {value:""}, (libres.length || otros.length) ? "Elegir…" : "No quedan más"),
+          libres.length ? h("optgroup", {label:"Otros clubes"}, libres.map(([rid,r]) => h("option", {value:"r:" + rid}, rivTxt(r)))) : null,
+          otros.length ? h("optgroup", {label:"Nuestros equipos"}, otros.map(([oid,o]) => h("option", {value:"e:" + oid}, "Nuestro " + shortEq(o)))) : null)),
+        h("button", {class:"btn ghost", type:"button", onclick:() => { const v = val("fx-sel-" + id); if (!v){ toast("Elige uno de la lista."); return; }
+          v.startsWith("r:") ? addEvitar(id, v.slice(2)) : setPropio(id, v.slice(2), true); }}, "Añadir")),
+      h("div", {class:"fields", style:"align-items:end;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 80px auto"},
+        h("label", {class:"f"}, "…o dar de alta uno nuevo", h("input", {type:"text", id:"fx-n-" + id, "data-draft":"", placeholder:"Ej.: C.D. Ribadelouro", value:nuevo,
+          oninput:(ev) => { ui.fichaNueva = ev.target.value; const box = document.getElementById("fx-sug-" + id); if (box){ const s = parecidos(ev.target.value).filter(([rid]) => !(e.evitar || []).includes(rid)); box.replaceChildren(...sugBox(id, s)); } }})),
+        h("label", {class:"f"}, "Categoría", h("input", {type:"text", id:"fx-c-" + id, "data-draft":"", list:"cats", placeholder:"Ej.: JUVENIL"})),
+        h("label", {class:"f"}, "Min", h("input", {type:"number", id:"fx-d-" + id, "data-draft":"", min:"30", max:"180", step:"5", placeholder:String(cfg().durRival)})),
+        h("button", {class:"btn", type:"button", onclick:() => {
+          const n = val("fx-n-" + id), ct = val("fx-c-" + id).toUpperCase(); if (!n || !ct){ toast("Escribe el equipo y la categoría."); return; }
+          addEvitar(id, crearExterno(n, ct, val("fx-d-" + id))); ui.fichaNueva = "";
+          ["fx-n-","fx-c-","fx-d-"].forEach(p => { const el = document.getElementById(p + id); if (el) el.value = ""; });
+          toast("Añadido. También queda en Equipos en conflicto.");
+        }}, "Dar de alta")),
+      h("div", {id:"fx-sug-" + id, class:"row"}, sugBox(id, sug))),
+    L ? null : h("details", {class:"sub"}, h("summary", null, "Editar datos del equipo"),
+      h("div", {class:"fields", style:"align-items:end;margin-top:8px"},
+        h("label", {class:"f"}, "Categoría", h("input", {type:"text", list:"cats", value:e.categoria, onchange:(ev) => patch("equipos", id, {categoria: ev.target.value.trim().toUpperCase()})})),
+        h("label", {class:"f"}, "Equipo", h("input", {type:"text", value:e.nombre, onchange:(ev) => patch("equipos", id, {nombre: ev.target.value.trim()})})),
+        h("label", {class:"f"}, "Min", h("input", {type:"number", min:"30", max:"180", step:"5", value:String(dur(e)), onchange:(ev) => patch("equipos", id, {duracion: Number(ev.target.value) || 60})})),
+        h("label", {class:"check"}, h("input", {type:"checkbox", checked:!!e.autonomica, onchange:(ev) => patch("equipos", id, {autonomica: ev.target.checked})}), "Autonómica"),
+        delBtn("eq:"+id, () => { del("equipos", id); ui.ficha = null; }, "Quitar equipo"))));
+}
+function sugBox(id, s){
+  if (!s.length) return [];
+  return [h("span", {class:"meta"}, "¿Es alguno de estos?"), ...s.slice(0,4).map(([rid,r]) => h("button", {class:"chip-btn", type:"button", onclick:() => { addEvitar(id, rid); ui.fichaNueva = ""; toast("Añadido " + r.nombre + "."); }}, rivTxt(r)))];
+}
+
+/* --- 1 · Equipos --- */
+function tabSeleccion(){
+  const L = locked(); const eqs = sorted("equipos");
+  const move = (i, dir) => { const a = eqs[i], z = eqs[i+dir]; if (!a || !z) return; put("equipos", a[0], {...a[1], orden:i+dir}); put("equipos", z[0], {...z[1], orden:i}); };
+  const lista = h("div", {class:"eqlist"}, eqs.map(([id,e],i) => {
+    const open = ui.ficha === id; const n = nConflictos(id);
+    const toggle = () => { ui.ficha = open ? null : id; ui.fichaNueva = ""; render(); };
+    return h("div", {class:"eqrow" + (open ? " open" : "")},
+      h("div", {class:"eqhead"},
+        h("b", {class:"prio"}, i+1),
+        h("button", {class:"eqname", type:"button", "aria-expanded": open ? "true" : "false", onclick:toggle},
+          h("span", null, h("b", null, e.categoria), " · " + e.nombre), h("span", {class:"chev", "aria-hidden":"true"}, open ? "▴" : "▾")),
+        h("button", {class:"pill " + (n ? "warn" : "steel"), type:"button", style:"border:0;cursor:pointer", onclick:toggle}, n ? n + (n === 1 ? " conflicto" : " conflictos") : "Sin conflictos"),
+        L ? null : h("span", {class:"row", style:"flex-wrap:nowrap;gap:4px"},
+          h("button", {class:"btn ghost small", type:"button", "aria-label":"Subir prioridad", disabled:i === 0, onclick:() => move(i,-1)}, "↑"),
+          h("button", {class:"btn ghost small", type:"button", "aria-label":"Bajar prioridad", disabled:i === eqs.length-1, onclick:() => move(i,1)}, "↓"))),
+      open ? fichaEquipo(id, e) : null);
+  }));
+  const nuevo = L ? null : h("div", {class:"fields card new", style:"align-items:end;margin-top:10px;padding:12px;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) 80px auto"},
+    h("label", {class:"f"}, "Nuevo equipo · categoría", h("input", {type:"text", id:"ne-cat", "data-draft":"", list:"cats", placeholder:"Ej.: ALEVÍN 1ª"})),
+    h("label", {class:"f"}, "Nombre", h("input", {type:"text", id:"ne-nombre", "data-draft":"", value:"A Quinta F.S."})),
+    h("label", {class:"f"}, "Min", h("input", {type:"number", id:"ne-dur", "data-draft":"", min:"30", max:"180", step:"5", placeholder:"60"})),
+    h("button", {class:"btn", type:"button", onclick:() => {
+      const c = val("ne-cat").toUpperCase(), n = val("ne-nombre"); if (!c || !n){ toast("Escribe la categoría y el equipo."); return; }
+      put("equipos", uid(), {nombre:n, categoria:c, duracion:Number(val("ne-dur")) || 60, evitar:[], evitarEq:[], orden:eqs.length}); document.getElementById("ne-cat").value = "";
+    }}, "Añadir"));
+  return h("section", null,
+    h("h2", null, "Equipos"),
+    ayuda("equipos", "Nuestros equipos por prioridad. Toca uno para ver su ficha.",
+      ["El número es la prioridad: el 1º elige hueco antes y marca el calendario del resto. Con la configuración en modificación puedes cambiar el orden con las flechas.",
+       "La etiqueta de la derecha cuenta los equipos con los que no puede coincidir. En la ficha puedes añadir uno que ya esté dado de alta o dar de alta uno nuevo; el nuevo queda también en la pestaña Equipos en conflicto.",
+       "Liga y grupo los trae el bot de Futgal."]),
+    catList(), lockBar(), lista, nuevo);
+}
+
+/* --- 2 · Equipos en conflicto --- */
+function tabConflictos(){
   const L = locked(); const rivs = sorted("rivales"), eqs = sorted("equipos"); const c = cfg();
   const setCfg = (k, v) => put("config", "general", {...cfg(), [k]: Number(v) || 0});
-  const short = e => e.categoria + (/"(\w)"/.test(e.nombre) ? ' "' + e.nombre.match(/"(\w)"/)[1] + '"' : "");
-  const rivTxt = r => r.nombre + " · " + r.categoria;
-  const usos = rid => eqs.filter(([,e]) => (e.evitar || []).includes(rid)).length;
+  const usan = rid => eqs.filter(([,e]) => (e.evitar || []).includes(rid));
+  const toggleEq = (eid, rid, on) => on ? addEvitar(eid, rid) : quitarEvitar(eid, rid);
+  const tarjeta = ([rid, r]) => {
+    const u = usan(rid);
+    return h("div", {class:"card", style:"padding:12px 14px;gap:8px"},
+      h("div", {class:"row", style:"justify-content:space-between"},
+        h("div", null, h("b", null, r.nombre), h("span", {class:"meta"}, " · " + r.categoria + " · " + durRiv(r) + " min"),
+          r.enlace ? h("a", {href:r.enlace, target:"_blank", rel:"noopener", class:"meta", style:"margin-left:8px"}, "Futgal ↗") : null),
+        u.length ? h("span", {class:"pill steel"}, u.length === 1 ? "1 equipo nuestro" : u.length + " equipos nuestros") : h("span", {class:"pill warn"}, "Sin equipo nuestro")),
+      h("div", {class:"checks"}, eqs.map(([eid,e]) => h("label", {class:"check"},
+        h("input", {type:"checkbox", checked:(e.evitar || []).includes(rid), disabled:L, onchange:(ev) => toggleEq(eid, rid, ev.target.checked)}), shortEq(e)))),
+      L ? null : h("details", {class:"sub"}, h("summary", null, "Editar o quitar"),
+        h("div", {class:"fields", style:"align-items:end;margin-top:8px;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 80px minmax(0,1.2fr) auto"},
+          h("label", {class:"f"}, "Equipo", h("input", {type:"text", value:r.nombre, onchange:(ev) => patch("rivales", rid, {nombre: ev.target.value.trim()})})),
+          h("label", {class:"f"}, "Categoría", h("input", {type:"text", list:"cats", value:r.categoria, onchange:(ev) => patch("rivales", rid, {categoria: ev.target.value.trim().toUpperCase()})})),
+          h("label", {class:"f"}, "Min", h("input", {type:"number", min:"30", max:"180", step:"5", value:String(durRiv(r)), onchange:(ev) => patch("rivales", rid, {duracion: Number(ev.target.value) || 60})})),
+          h("label", {class:"f"}, "Enlace Futgal", h("input", {type:"url", value:r.enlace || "", placeholder:"Para que el bot traiga sus partidos", onchange:(ev) => patch("rivales", rid, {enlace: ev.target.value.trim()})})),
+          delBtn("riv:"+rid, () => { del("rivales", rid); Object.entries(S.equipos).forEach(([eid,e]) => { if ((e.evitar||[]).includes(rid)) patch("equipos", eid, {evitar: e.evitar.filter(x => x !== rid)}); }); }, "Quitar equipo en conflicto"))));
+  };
+  const alta = L ? null : h("div", {class:"card new", style:"gap:10px"},
+    h("h3", null, "Dar de alta un equipo en conflicto"),
+    h("div", {class:"fields", style:"align-items:end;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) 80px minmax(0,1.2fr)"},
+      h("label", {class:"f"}, "Equipo", h("input", {type:"text", id:"nc-n", "data-draft":"", placeholder:"Ej.: C.D. Ribadelouro", oninput:(ev) => {
+        const box = document.getElementById("nc-sug"); if (!box) return; const s = parecidos(ev.target.value);
+        box.replaceChildren(...(s.length ? [h("span", {class:"meta"}, "Ya dados de alta: " + s.slice(0,4).map(([,r]) => rivTxt(r)).join(" · ") + ". Si es uno de ellos, márcalo en su tarjeta.")] : [])); }})),
+      h("label", {class:"f"}, "Categoría", h("input", {type:"text", id:"nc-c", "data-draft":"", list:"cats", placeholder:"Ej.: JUVENIL 3ª"})),
+      h("label", {class:"f"}, "Min", h("input", {type:"number", id:"nc-d", "data-draft":"", min:"30", max:"180", step:"5", placeholder:String(c.durRival)})),
+      h("label", {class:"f"}, "Enlace Futgal", h("input", {type:"url", id:"nc-l", "data-draft":"", placeholder:"Opcional"}))),
+    h("div", {id:"nc-sug"}),
+    h("div", {class:"grid", style:"gap:6px"}, lab("Choca con estos equipos nuestros"),
+      h("div", {class:"checks"}, eqs.map(([eid,e]) => h("label", {class:"check"}, h("input", {type:"checkbox", class:"nc-eq", value:eid}), shortEq(e))))),
+    h("div", {class:"row end"}, h("button", {class:"btn", type:"button", onclick:() => {
+      const n = val("nc-n"), ct = val("nc-c").toUpperCase(); if (!n || !ct){ toast("Escribe el equipo y la categoría."); return; }
+      const marcados = [...document.querySelectorAll(".nc-eq")].filter(x => x.checked).map(x => x.value);
+      const rid = crearExterno(n, ct, val("nc-d"), val("nc-l"));
+      marcados.forEach(eid => addEvitar(eid, rid));
+      ["nc-n","nc-c","nc-d","nc-l"].forEach(i => { const el = document.getElementById(i); if (el) el.value = ""; });
+      document.querySelectorAll(".nc-eq").forEach(x => x.checked = false);
+      toast(marcados.length ? "Dado de alta y asignado." : "Dado de alta. Marca con qué equipo nuestro choca.");
+    }}, "Dar de alta")));
 
-  /* Bloque A · cada equipo nuestro con su lista de equipos externos (uno a varios, sin límite) */
-  const ext = eqs.map(([id,e]) => {
-    const lista = (e.evitar || []).filter(rid => S.rivales[rid]).map(rid => [rid, S.rivales[rid]])
-      .sort((a,b) => rivTxt(a[1]).localeCompare(rivTxt(b[1])));
-    const libres = rivs.filter(([rid]) => !(e.evitar || []).includes(rid));
-    const chips = lista.length ? h("div", {class:"chips"}, lista.map(([rid,r]) =>
-        h("span", {class:"chip-btn", style:"cursor:default;background:var(--rival);border-color:var(--rival-line);color:var(--ink);display:inline-flex;align-items:center;gap:6px"},
-          h("span", null, h("b", null, r.nombre), " · " + r.categoria + " · " + durRiv(r) + " min"),
-          L ? null : h("button", {class:"btn ghost small", type:"button", style:"padding:0 6px;min-height:0", "aria-label":"Quitar " + r.nombre, title:"Quitar de este equipo",
-            onclick:() => quitarEvitar(id, rid)}, "×"))))
-      : h("span", {class:"meta"}, "Ninguno: este equipo solo se cruza con los equipos nuestros marcados abajo.");
-    const add = L ? null : h("div", {class:"fields", style:"align-items:end;margin-top:8px;grid-template-columns:minmax(0,1.4fr) auto minmax(0,1.2fr) minmax(0,1fr) 80px auto"},
-      h("label", {class:"f"}, "Añadir uno ya vigilado", h("select", {id:"ex-sel-" + id, "data-draft":"", disabled:!libres.length},
-        libres.length ? [h("option", {value:""}, "Elegir…"), ...libres.map(([rid,r]) => h("option", {value:rid}, rivTxt(r)))] : h("option", {value:""}, "No quedan más"))),
-      h("button", {class:"btn ghost", type:"button", disabled:!libres.length, onclick:() => { const rid = val("ex-sel-" + id); if (!rid){ toast("Elige un equipo de la lista."); return; } addEvitar(id, rid); }}, "Añadir"),
-      h("label", {class:"f"}, "…o uno nuevo", h("input", {type:"text", id:"ex-n-" + id, "data-draft":"", placeholder:"Ej.: Celta"})),
-      h("label", {class:"f"}, "Categoría", h("input", {type:"text", id:"ex-c-" + id, "data-draft":"", list:"cats", placeholder:"Ej.: JUVENIL"})),
-      h("label", {class:"f"}, "Min", h("input", {type:"number", id:"ex-d-" + id, "data-draft":"", min:"30", max:"180", step:"5", placeholder:String(c.durRival)})),
-      h("button", {class:"btn", type:"button", onclick:() => {
-        const n = val("ex-n-" + id), ct = val("ex-c-" + id).toUpperCase(); if (!n || !ct){ toast("Escribe el equipo y la categoría."); return; }
-        const same = rivs.find(([,r]) => r.nombre.toLowerCase() === n.toLowerCase() && String(r.categoria).toUpperCase() === ct);
-        const rid = same ? same[0] : uid();
-        if (!same) put("rivales", rid, {nombre:n, categoria:ct, duracion:Number(val("ex-d-" + id)) || c.durRival, enlace:"", orden:rivs.length});
-        addEvitar(id, rid);
-        ["ex-n-","ex-c-","ex-d-"].forEach(p => { const el = document.getElementById(p + id); if (el) el.value = ""; });
-      }}, "Crear y añadir"));
-    return h("div", {class:"card", style:"padding:12px 14px"},
-      h("div", {class:"row", style:"justify-content:space-between;margin-bottom:8px"},
-        h("b", null, short(e) + " · " + e.nombre),
-        h("span", {class:"pill steel"}, lista.length === 1 ? "1 equipo externo" : lista.length + " equipos externos")),
-      chips, add);
-  });
-
-  /* Bloque B · entre equipos nuestros (en los dos sentidos) */
   const cell = (checked, onchange) => h("td", {style:"text-align:center"}, h("input", {type:"checkbox", checked, disabled:L, onchange, "aria-label":"No coincidir"}));
-  const head = h("tr", null, h("th", null, "Nuestro equipo"), eqs.map(([,e]) => h("th", {style:"min-width:76px"}, short(e))));
-  const rows = eqs.map(([id,e]) => h("tr", null, h("td", {class:"team"}, h("b", null, short(e))),
-    eqs.map(([oid]) => oid === id ? h("td", {style:"background:var(--surface2)"}) : cell(incompat(id).includes(oid), (ev) => {
-      if (ev.target.checked){ const s = new Set(e.evitarEq||[]); s.add(oid); patch("equipos", id, {evitarEq:[...s]}); }
-      else { patch("equipos", id, {evitarEq:(e.evitarEq||[]).filter(x => x !== oid)}); const o = S.equipos[oid]; if (o && (o.evitarEq||[]).includes(id)) patch("equipos", oid, {evitarEq:o.evitarEq.filter(x => x !== id)}); }
-    }))));
+  const head = h("tr", null, h("th", null, "Nuestro equipo"), eqs.map(([,e]) => h("th", {style:"min-width:76px"}, shortEq(e))));
+  const rows = eqs.map(([id,e]) => h("tr", null, h("td", {class:"team"}, h("b", null, shortEq(e))),
+    eqs.map(([oid]) => oid === id ? h("td", {style:"background:var(--surface2)"}) : cell(incompat(id).includes(oid), (ev) => setPropio(id, oid, ev.target.checked)))));
 
-  const huerfanos = rivs.filter(([rid]) => !usos(rid));
   return h("section", null,
-    h("h2", null, "Incompatibilidades"),
-    h("p", {class:"lead"}, "Para cada equipo nuestro, la lista de equipos de otros clubes con los que no puede coincidir (porque tiene jugadores que también juegan allí). Puedes poner los que quieras, y un mismo equipo externo puede estar en la lista de varios equipos nuestros. Abajo, los cruces entre equipos nuestros."),
-    lockBar(),
-    h("div", {class:"daybar", style:"margin-bottom:12px"},
+    h("h2", null, "Equipos en conflicto"),
+    ayuda("conflictos", "Equipos de otros clubes con los que no podemos coincidir, y con cuál de los nuestros.",
+      ["Suele pasar porque hay jugadores que juegan en los dos. Un mismo equipo puede chocar con varios de los nuestros: márcalos en su tarjeta.",
+       "Con el enlace de Futgal el bot trae sus partidos los martes y el reparto de horas los evita.",
+       "Abajo están los cruces entre equipos nuestros y los márgenes que se usan al comprobar coincidencias."]),
+    catList(), lockBar(), alta,
+    rivs.length ? h("div", {class:"grid", style:"gap:10px;margin-top:12px"}, rivs.map(tarjeta)) : h("div", {class:"empty", style:"margin-top:12px"}, "Todavía no hay equipos en conflicto."),
+    eqs.length ? [
+      h("h2", {style:"font-size:20px;margin-top:20px"}, "Entre equipos nuestros"),
+      h("div", {class:"scroll card", style:"padding:0"}, h("table", {class:"plan", style:"min-width:" + (200 + eqs.length * 82) + "px"}, h("thead", null, head), h("tbody", null, rows)))] : null,
+    h("h2", {style:"font-size:20px;margin-top:20px"}, "Márgenes"),
+    h("div", {class:"daybar"},
       h("label", {class:"f", style:"max-width:220px"}, "Margen por retrasos (min)", h("input", {type:"number", min:"0", max:"120", step:"5", value:String(c.margen), onchange:(ev) => setCfg("margen", ev.target.value)})),
       h("label", {class:"f", style:"max-width:260px"}, "Margen entre partidos seguidos en el pabellón (min)", h("input", {type:"number", min:"0", max:"60", step:"5", value:String(c.margenPab), onchange:(ev) => setCfg("margenPab", ev.target.value)})),
-      h("span", {class:"meta", style:"max-width:46ch"}, "El margen por retrasos se suma al final de cada partido al comprobar coincidencias. Se puede cambiar en cualquier momento.")),
-    eqs.length ? [
-      h("h2", {style:"font-size:20px"}, "Con equipos de otros clubes"),
-      h("div", {class:"grid", style:"gap:10px"}, ext),
-      huerfanos.length ? h("p", {class:"meta", style:"margin-top:8px"}, "Vigilados sin ningún equipo nuestro asignado (no cuentan al generar): " + huerfanos.map(([,r]) => rivTxt(r)).join(", ") + ".") : null,
-      h("h2", {style:"font-size:20px;margin-top:20px"}, "Entre equipos nuestros"),
-      h("div", {class:"scroll card", style:"padding:0"}, h("table", {class:"plan", style:"min-width:" + (200 + eqs.length * 82) + "px"}, h("thead", null, head), h("tbody", null, rows)))
-    ] : h("div", {class:"empty"}, "Añade equipos en la pestaña Equipos."));
+      h("span", {class:"meta", style:"max-width:46ch"}, "El margen por retrasos se suma al final de cada partido al comprobar coincidencias.")));
 }
 
 /* --- 3 · Normas --- */
@@ -676,7 +758,7 @@ function tabNormas(){
       h("td", null, h("span", {class:"meta"}, desc(e)))); };
   return h("section", null,
     h("h2", null, "Normas por equipo"),
-    h("p", {class:"lead"}, "Cuándo y dónde puede jugar cada equipo en casa. Por ejemplo: los pequeños ni muy temprano ni muy tarde, o los autonómicos solo por la tarde. Sin pabellón marcado, vale cualquiera. La columna Federación es la franja de hora de comienzo que admite Futgal para esa competición: el reparto automático nunca se sale de ella."),
+    ayuda("normas", "Cuándo y dónde puede jugar cada equipo en casa.", ["Por ejemplo: los pequeños ni muy temprano ni muy tarde, o los autonómicos solo por la tarde.", "Sin pabellón marcado, vale cualquiera.", "La columna Federación es la franja de hora de comienzo que admite Futgal para esa competición: el reparto automático nunca se sale de ella."]),
     lockBar(),
     L ? null : h("div", {class:"card", style:"margin-bottom:12px"},
       h("h3", null, "Aplicar a varios equipos a la vez"),
@@ -756,7 +838,7 @@ function tabPabellones(){
   };
   return h("section", null,
     h("h2", null, "Horas de pabellón"),
-    h("p", {class:"lead"}, "Los pabellones se dan de alta una vez. Las horas cambian cada semana: elige el fin de semana y añade las franjas de cada pabellón."),
+    ayuda("pabellones", "Las horas de pabellón de cada fin de semana.", ["Los pabellones se dan de alta una vez.", "Las horas cambian cada semana: elige el fin de semana y añade las franjas de cada pabellón."]),
     h("div", {class:"card", style:"margin-bottom:12px"}, h("h3", null, "Pabellones"),
       pabs.length ? h("div", {class:"checks"}, pabs.map(([id,p]) => h("span", {class:"check"}, p.nombre, delBtn("pab:"+id, () => { del("pabellones", id); Object.entries(S.franjas).forEach(([fid,f]) => { if (f.pabellonId === id) del("franjas", fid); }); }, "Quitar pabellón")))) : h("span", {class:"meta"}, "Todavía no hay pabellones."),
       h("div", {class:"row"}, h("input", {type:"text", id:"pab-new", "data-draft":"", placeholder:"Ej.: P. IES San Paio", style:"flex:1;min-width:180px"}),
@@ -849,13 +931,14 @@ function tabCalendario(){
     return has ? h("div", {class:"grid", style:"gap:6px"}, h("h3", null, ["Viernes","Sábado","Domingo"][i] + " " + ddmm(d)), timeline(d)) : null; }).filter(Boolean);
   return h("section", null,
     h("h2", null, "Jornada"),
-    h("p", {class:"lead"}, "Fuera: día y hora los pone el club local. Casa: Proponer horarios reparte el fin de semana según prioridad, normas, incompatibilidades y horas de pabellón. Si cambias día, hora o pabellón de un equipo queda Fijo; pulsa Recalcular el resto y todo se reorganiza alrededor."),
+    ayuda("jornada", "Los partidos del fin de semana: revisa, ajusta y confirma.", ["Fuera: día y hora los pone el club local.", "Casa: el bot propone las horas los martes a las 17:30. Proponer horarios las vuelve a repartir según prioridad, normas, conflictos y horas de pabellón.", "Si cambias día, hora o pabellón de un equipo queda Fijo; pulsa Recalcular el resto y todo se reorganiza alrededor."]),
     !locked() ? h("div", {class:"banner", style:"margin:0 0 12px"}, "La configuración está en modificación. Confírmala en Equipos antes de cerrar la jornada.") : null,
     (() => { const fi = S.config.futgal_import; if (!fi) return null;
       const cuando = new Date(fi.fecha).toLocaleString("es-ES", {weekday:"long", day:"numeric", month:"numeric", hour:"2-digit", minute:"2-digit"});
       return h("div", {class:"card", style:"margin:0 0 12px;gap:6px"},
         h("div", {class:"row", style:"justify-content:space-between"}, h("b", null, "Importación de Futgal"), fi.ok ? h("span", {class:"pill ok"}, cuando) : h("span", {class:"pill bad"}, "Error · " + cuando)),
-        fi.ok ? h("span", {class:"meta"}, fi.importados + " partidos de nuestros equipos (" + fi.nuevos + " nuevos) y " + fi.rivales + " de rivales vigilados. Se importa los martes a las 19:00 y cada vez que se abre Generar calendario (ahí manda siempre lo último de Futgal). Los partidos en casa con hora ya puesta en Futgal entran como Fijo.") : h("span", {class:"meta"}, fi.error || ""),
+        fi.ok ? h("span", {class:"meta"}, fi.importados + " partidos de nuestros equipos (" + fi.nuevos + " nuevos) y " + fi.rivales + " de rivales vigilados. Se importa los martes a las 17:30 (y se proponen las horas de casa) y cada vez que se abre Generar calendario (ahí manda siempre lo último de Futgal). Los partidos en casa con hora ya puesta en Futgal entran como Fijo.") : h("span", {class:"meta"}, fi.error || ""),
+        (fi.propuesta || []).length ? h("span", {class:"meta"}, "Horas de casa propuestas por el bot: " + fi.propuesta.map(r => "finde del " + ddmm(addDays(r.finde,-1)) + ": " + r.propuestos + (r.sinHueco ? " (" + r.sinHueco + " sin hueco" + (r.aviso ? ", " + r.aviso.toLowerCase() : "") + ")" : "")).join("; ") + ". Revísalas y confirma.") : null,
         h("div", {class:"row"}, botonFutgal()),
         (fi.cambios || []).length ? h("div", null, h("b", null, "Cambios de Futgal en partidos confirmados o fijados:"), h("ul", {style:"margin:4px 0 0;padding-left:18px"}, fi.cambios.map(c => h("li", null, c)))) : null,
         (fi.sinEquipo || []).length ? h("div", null, h("b", null, "Sin equipo en el panel (añádelo en Equipos):"), h("ul", {style:"margin:4px 0 0;padding-left:18px"}, fi.sinEquipo.map(c => h("li", null, c)))) : null); })(),
@@ -943,7 +1026,7 @@ function viewMails(){
   const stTxt = !st ? "Todavía no se ha revisado." : st.ok ? "Última revisión: " + new Date(st.fecha).toLocaleString("es-ES", {dateStyle:"short", timeStyle:"short"}) + " · " + (st.nuevos || 0) + " nuevo(s)" : "Última revisión con error: " + (st.error || "");
   return [clubBar("Correo Futgal"), dbNotice(), h("main", {class:"wrap"},
     h("h2", null, "Correo de Futgal"),
-    h("p", {class:"lead"}, "Los correos sin leer del buzón oficial de Futgal se copian aquí tres veces al día (8:00, 14:00 y 20:00) y en Futgal siguen como no leídos. Después les pongo titular y resumen."),
+    ayuda("mails", "Los correos nuevos de Futgal, con titular y resumen.", ["Se copian aquí tres veces al día (8:00, 14:00 y 20:00) y en Futgal siguen como no leídos.", "Después se les pone titular, resumen y qué hay que hacer."]),
     h("div", {class:"footbar", style:"margin-bottom:12px"},
       h("span", {class: st && !st.ok ? "pill bad" : "meta"}, stTxt),
       h("button", {class:"btn", type:"button", onclick: async (ev) => { ev.target.disabled = true; toast("Revisando Futgal…");
@@ -954,7 +1037,7 @@ function viewMails(){
 }
 
 /* ----- Bot de Futgal bajo demanda ----- */
-// El bot entra solo los martes a las 19:00. Además, al pulsar Generar calendario vuelve a Futgal,
+// El bot entra solo los martes a las 17:30. Además, al pulsar Generar calendario vuelve a Futgal,
 // lo compara con lo que bajó el martes y se queda siempre con lo último (aunque esté confirmado o fijo).
 let futgalBusy = false;
 async function traerFutgal(){
@@ -973,7 +1056,7 @@ function estadoFutgal(){
   return h("div", {class:"card", style:"margin:0 0 12px;gap:6px"},
     h("div", {class:"row", style:"justify-content:space-between"}, h("b", null, "Partidos de Futgal"),
       futgalBusy ? h("span", {class:"pill steel"}, "Actualizando…") : fi ? h("span", {class:"pill " + (fi.ok ? "ok" : "bad")}, (fi.ok ? "" : "Error · ") + cuando) : h("span", {class:"pill bad"}, "Sin importar")),
-    h("span", {class:"meta"}, "El bot entra en Futgal los martes a las 19:00 y otra vez cada vez que se abre esta pantalla: compara con lo que había y se queda siempre con lo último. Los carteles con escudos llegan al móvil de Javi los martes después de las 19:00."),
+    h("span", {class:"meta"}, "El bot entra en Futgal los martes a las 17:30 y cada vez que se abre esta pantalla, y se queda siempre con lo último. Los carteles llegan al móvil de Javi los martes hacia las 18:00."),
     fi && fi.ok && (fi.cambios || []).length ? h("div", null, h("b", null, "Cambios de Futgal en la última revisión:"), h("ul", {style:"margin:4px 0 0;padding-left:18px"}, fi.cambios.map(c => h("li", null, c)))) : null,
     h("div", {class:"row"}, botonFutgal()));
 }
@@ -982,7 +1065,7 @@ function estadoFutgal(){
 function viewGenerar(){
   return [clubBar("Generar calendario"), dbNotice(), h("main", {class:"wrap"},
     h("h2", null, "¿Cómo quieres generar el calendario?"),
-    h("p", {class:"lead"}, "Automático usa el calendario publicado en Futgal: al abrir esta pantalla el bot vuelve a Futgal y se queda con lo último. Manual abre el diseñador anterior, para cuando falte algo o haya que partir de una imagen o PDF."),
+    ayuda("generar", "Automático para el día a día; manual si falta algo.", ["Automático usa el calendario publicado en Futgal: al abrir esta pantalla el bot vuelve a Futgal y se queda con lo último.", "Manual abre el diseñador anterior, para cuando falte algo o haya que partir de una imagen o PDF."]),
     estadoFutgal(),
     h("div", {class:"opts"},
       h("button", {class:"opt", type:"button", onclick:() => go("auto")}, h("span", {class:"pill ok tag"}, "Recomendado"), h("b", null, "Automáticamente"), h("span", null, "Crea el cartel del fin de semana con el calendario publicado en Futgal y los escudos de los rivales, listo para descargar.")),
@@ -991,7 +1074,7 @@ function viewGenerar(){
 function viewManual(){
   return [clubBar("Generar calendario"), h("main", {class:"wrap"},
     h("h2", null, "Generar manualmente"),
-    h("p", {class:"lead"}, "El diseñador guarda los modelos del cartel (4:5 y story). Úsalo cuando el automático no tenga todos los datos."),
+    ayuda("manual", "Para cuando el automático no tenga todos los datos.", ["El diseñador guarda los modelos del cartel (4:5 y story)."]),
     h("div", {class:"card", style:"max-width:720px"},
       h("ol", {class:"steps"},
         h("li", null, "Abre el diseñador con el botón de abajo."),
@@ -1087,7 +1170,7 @@ function viewAuto(){
   const header = ui.header[hk] ?? data.defHeader;
   const canvas = h("canvas", {id:"poster", width:"1080", height: ui.formato === "post" ? "1350" : "1920", role:"img", "aria-label":"Cartel del calendario " + header});
   main.append(
-    h("p", {class:"lead"}, "El cartel se crea con el calendario publicado en Futgal (lo último: el bot vuelve a Futgal al abrir esta pantalla), con los escudos de los rivales y ordenado por categoría dentro de cada día."),
+    ayuda("auto", "El cartel del fin de semana, listo para descargar.", ["Se crea con el calendario publicado en Futgal: el bot vuelve a Futgal al abrir esta pantalla y se queda con lo último.", "Lleva los escudos de los rivales y va ordenado por categoría dentro de cada día."]),
     estadoFutgal(),
     (data.sinHora || []).length ? h("div", {class:"banner", style:"margin:0 0 12px"}, "Sin hora en Futgal (no salen en el cartel): " + data.sinHora.join(" · ")) : null,
     h("div", {class:"gen"},

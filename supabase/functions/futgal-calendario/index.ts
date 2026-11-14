@@ -4,6 +4,8 @@
 // Si Futgal ya trae la hora de un partido en casa, se toma como oficial y queda fijada.
 // Con { ultimo: true } (botón Generar calendario del panel) manda siempre lo último de Futgal:
 // compara con lo que había y actualiza también los confirmados o fijados, apuntando cada diferencia.
+// Tras la entrada del martes propone las horas de los partidos en casa que aún no la tienen
+// (misma lógica que «Proponer horarios» del panel: prioridad, normas, conflictos y horas de pabellón).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const BASE = "https://intranet.futgal.es";
@@ -51,6 +53,80 @@ const catOf = (s: string) => { const n = norm(s); return CATS.find(c => n.includ
 const levelOf = (s: string) => { const n = norm(s).replace(/ª/g, "ª"); for (const [re, v] of LEVEL) if (re.test(n) || re.test(s.toUpperCase())) return v; return ""; };
 const letterOf = (s: string) => ((s.match(/"([A-Z])"\s*$/) || s.match(/"([A-Z])"/) || [])[1] || "");
 
+// ---- Proponer horarios (copia de la lógica del panel) ----
+const toMin = (t: string) => { if (!t) return null as any; const [a, b] = t.split(":").map(Number); return a * 60 + (b || 0); };
+const toHM = (m: number) => String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+const dow = (f: string) => String(new Date(f + "T12:00:00Z").getUTCDay());
+function parseFed(str: string) {
+  const map: Record<string, string> = { vie: "5", sab: "6", dom: "0" }; const out: { d: string; desde: string; hasta: string }[] = [];
+  String(str || "").split(";").forEach(part => {
+    const m = part.trim().match(/^(vie|s[aá]b|dom)[a-zá]*\.?\s+(.+)$/i); if (!m) return;
+    const d = map[m[1].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")];
+    m[2].split(",").forEach(r => { const k = r.trim().match(/^(\d{1,2}:\d{2})\s*[-–]\s*(\d{1,2}:\d{2})$/); if (k) out.push({ d, desde: k[1].padStart(5, "0"), hasta: k[2].padStart(5, "0") }); });
+  });
+  return out;
+}
+const normasDe = (e: any) => ({ dias: ["5", "6", "0"], desde: "", hasta: "", pabs: [] as string[], fed: "", ...((e && e.normas) || {}) });
+function cumpleNormas(e: any, fecha: string, t: number, d: number, pab: string) {
+  const n = normasDe(e); const dw = dow(fecha);
+  const fed = parseFed(n.fed); if (fed.length && !fed.some(f => f.d === dw && t >= toMin(f.desde) && t <= toMin(f.hasta))) return false;
+  if (n.dias.length && !n.dias.includes(dw)) return false;
+  if (n.desde && t < toMin(n.desde)) return false;
+  if (n.hasta && t + d > toMin(n.hasta)) return false;
+  if (n.pabs.length && !n.pabs.includes(pab)) return false;
+  return true;
+}
+async function proponer(sb: any, C: Record<string, Record<string, any>>, wk: string) {
+  const c = { margen: 15, margenPab: 10, durRival: 60, ...(C.config.general || {}) };
+  const dur = (e: any) => Number(e && e.duracion) || 60;
+  const frs = Object.values(C.franjas).filter((x: any) => weekendKey(x.fecha) === wk).sort((a: any, b: any) => (a.fecha + a.desde).localeCompare(b.fecha + b.desde)) as any[];
+  const all = Object.entries(C.partidos).filter(([, p]) => p.fecha && weekendKey(p.fecha) === wk);
+  const libres = all.filter(([, p]) => p.casa && !p.fija && p.estado !== "confirmado" && !p.hora)
+    .sort((a, b) => ((C.equipos[a[1].equipoId] || {}).orden ?? 0) - ((C.equipos[b[1].equipoId] || {}).orden ?? 0));
+  if (!libres.length) return null;
+  if (!frs.length) return { finde: wk, propuestos: 0, sinHueco: libres.length, aviso: "Sin horas de pabellón ese fin de semana" };
+  const incompat = (eid: string) => { const e = C.equipos[eid] || {}; const set = new Set<string>(e.evitarEq || []);
+    Object.entries(C.equipos).forEach(([oid, o]) => { if ((o.evitarEq || []).includes(eid)) set.add(oid); }); set.delete(eid); return [...set].filter(x => C.equipos[x]); };
+  const occ: any[] = [];
+  all.forEach(([, p]) => { if (!p.hora) return; const s = toMin(p.hora), e = s + dur(C.equipos[p.equipoId]);
+    occ.push({ fecha: p.fecha, pab: p.casa ? p.pabellonId : null, s, e, eid: p.equipoId }); });
+  const pabOrden = Object.entries(C.pabellones).sort((a, b) => (a[1].orden ?? 0) - (b[1].orden ?? 0)).map(([id]) => id);
+  let ok = 0, sin = 0;
+  for (const [pid, p] of libres) {
+    const eq = C.equipos[p.equipoId]; const d = dur(eq); const inc = incompat(p.equipoId);
+    const rv: any[] = [];
+    ((eq && eq.evitar) || []).forEach((rid: string) => { const r = C.rivales[rid]; if (!r) return;
+      Object.values(C.partidosRivales).forEach((rp: any) => { if (rp.rivalId === rid && rp.hora && weekendKey(rp.fecha) === wk) { const s = toMin(rp.hora); rv.push({ fecha: rp.fecha, s, e: s + (Number(r.duracion) || c.durRival) }); } }); });
+    const fits = (fecha: string, pab: string, t: number, fd: number, fh: number) => t >= fd && t + d <= fh
+      && !occ.some(o => o.fecha === fecha && o.pab && o.pab === pab && t < o.e + c.margenPab && o.s < t + d + c.margenPab)
+      && !occ.some(o => o.fecha === fecha && inc.includes(o.eid) && t < o.e + c.margen && o.s < t + d + c.margen)
+      && !rv.some(r => r.fecha === fecha && t < r.e + c.margen && r.s < t + d + c.margen)
+      && cumpleNormas(eq, fecha, t, d, pab);
+    let best: any = null;
+    for (const fr of frs) {
+      const fd = toMin(fr.desde), fh = toMin(fr.hasta); if (fd == null || fh == null) continue;
+      const cand = new Set<number>([fd]);
+      occ.forEach(o => { if (o.fecha === fr.fecha) { cand.add(o.e + c.margenPab); cand.add(o.e + c.margen); } });
+      rv.forEach(r => { if (r.fecha === fr.fecha) cand.add(r.e + c.margen); });
+      for (let t = fd; t <= fh - d; t += 5) cand.add(t);
+      for (const t of [...cand].filter(t => t >= fd).sort((a, b) => a - b)) {
+        if (fits(fr.fecha, fr.pabellonId, t, fd, fh)) {
+          const key = fr.fecha + toHM(t);
+          if (!best || key < best.key || (key === best.key && pabOrden.indexOf(fr.pabellonId) < pabOrden.indexOf(best.pab))) best = { key, fecha: fr.fecha, pab: fr.pabellonId, s: t };
+          break;
+        }
+      }
+    }
+    if (best) {
+      occ.push({ fecha: best.fecha, pab: best.pab, s: best.s, e: best.s + d, eid: p.equipoId });
+      C.partidos[pid] = { ...p, fecha: best.fecha, hora: toHM(best.s), pabellonId: best.pab, propuestoPorBot: true };
+      await sb.from("panel_docs").update({ data: C.partidos[pid] }).eq("col", "partidos").eq("id", pid);
+      ok++;
+    } else sin++;
+  }
+  return { finde: wk, propuestos: ok, sinHueco: sin };
+}
+
 Deno.serve(async (req) => {
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const opts = await req.json().catch(() => ({}));
@@ -72,8 +148,8 @@ Deno.serve(async (req) => {
     if (!html.includes("Cod. Partido") && !html.includes("table-striped")) throw new Error("No se pudo entrar en Futgal o leer el buscador de partidos.");
     const ps = parse(html);
 
-    const { data: docs } = await sb.from("panel_docs").select("col,id,data").in("col", ["equipos", "pabellones", "partidos", "rivales", "partidosRivales"]);
-    const C: Record<string, Record<string, any>> = { equipos: {}, pabellones: {}, partidos: {}, rivales: {}, partidosRivales: {} };
+    const { data: docs } = await sb.from("panel_docs").select("col,id,data").in("col", ["equipos", "pabellones", "partidos", "rivales", "partidosRivales", "franjas", "config"]);
+    const C: Record<string, Record<string, any>> = { equipos: {}, pabellones: {}, partidos: {}, rivales: {}, partidosRivales: {}, franjas: {}, config: {} };
     (docs || []).forEach((d: any) => { C[d.col][d.id] = d.data; });
     const eqs = Object.entries(C.equipos);
     const pabFor = (campo: string) => { const n = norm(campo); let best = ""; for (const [id, p] of Object.entries(C.pabellones)) { const words = norm(p.nombre).replace(/^P\.?\s*/, "").split(/[^A-Z0-9]+/).filter(w => w.length > 3); if (words.some(w => n.includes(w))) best = id; } return best; };
@@ -95,12 +171,14 @@ Deno.serve(async (req) => {
       if (!norm(ours).includes("QUINTA")) continue;
       const eid = matchEq(ours, p.comp);
       if (!eid) { informe.sinEquipo.push(`${p.comp} · ${ours} (${p.fecha})`); continue; }
+      if (p.comp && C.equipos[eid].competicion !== p.comp) { C.equipos[eid] = { ...C.equipos[eid], competicion: p.comp }; await sb.from("panel_docs").update({ data: C.equipos[eid] }).eq("col", "equipos").eq("id", eid); }
       const wk = weekendKey(p.fecha); const id = wk + "_" + eid;
       const cur = C.partidos[id];
       const nuevo = { equipoId: eid, fecha: p.fecha, casa, rival, codPartido: p.cod, fuente: "Futgal", lugar: casa ? "" : p.campo, futgalHora: p.hora, futgalCampo: p.campo, jornadaFutgal: p.jornada };
       informe.importados++;
       if (!cur) {
-        await sb.from("panel_docs").upsert({ col: "partidos", id, data: { ...nuevo, hora: p.hora || "", pabellonId: casa ? pabFor(p.campo) : "", fija: !!(casa && p.hora), estado: "propuesto" } });
+        C.partidos[id] = { ...nuevo, hora: p.hora || "", pabellonId: casa ? pabFor(p.campo) : "", fija: !!(casa && p.hora), estado: "propuesto" };
+        await sb.from("panel_docs").upsert({ col: "partidos", id, data: C.partidos[id] });
         informe.nuevos++; continue;
       }
       if (opts.ultimo) {
@@ -120,10 +198,12 @@ Deno.serve(async (req) => {
         if (!!cur.casa !== casa) dif.push(casa ? "ahora en casa" : "ahora fuera");
         if (!casa && p.hora && cur.hora !== p.hora) dif.push(`hora ${cur.hora || "—"} → ${p.hora}`);
         if (dif.length) { const e = C.equipos[eid]; const t = `${e.categoria} ${e.nombre}: ${dif.join(", ")}`; informe.cambios.push(t); avisos.push(t); }
-        await sb.from("panel_docs").update({ data: { ...cur, codPartido: p.cod, futgalHora: p.hora, futgalCampo: p.campo } }).eq("col", "partidos").eq("id", id);
+        C.partidos[id] = { ...cur, codPartido: p.cod, futgalHora: p.hora, futgalCampo: p.campo };
+        await sb.from("panel_docs").update({ data: C.partidos[id] }).eq("col", "partidos").eq("id", id);
         continue;
       }
       const upd = { ...cur, ...nuevo, hora: casa ? (p.hora || (cur.casa ? cur.hora : "")) : p.hora, fija: casa && p.hora ? true : !!cur.fija, pabellonId: casa ? (cur.pabellonId || pabFor(p.campo)) : "" };
+      C.partidos[id] = upd;
       await sb.from("panel_docs").update({ data: upd }).eq("col", "partidos").eq("id", id);
       informe.actualizados++;
     }
@@ -136,8 +216,17 @@ Deno.serve(async (req) => {
         if (!p.fecha) continue;
         const id = "f" + p.cod;
         const prev = C.partidosRivales[id];
-        await sb.from("panel_docs").upsert({ col: "partidosRivales", id, data: { ...(prev || {}), rivalId: rid, fecha: p.fecha, hora: p.hora, lugar: p.campo, fuente: "Futgal", codPartido: p.cod, partido: p.local + " - " + p.visit } });
+        C.partidosRivales[id] = { ...(prev || {}), rivalId: rid, fecha: p.fecha, hora: p.hora, lugar: p.campo, fuente: "Futgal", codPartido: p.cod, partido: p.local + " - " + p.visit };
+        await sb.from("panel_docs").upsert({ col: "partidosRivales", id, data: C.partidosRivales[id] });
         informe.rivales++;
+      }
+    }
+    // propuesta automática de horas (solo la entrada del martes)
+    if (martes) {
+      informe.propuesta = [];
+      for (const wk of [wk1, addDays(wk1, 7)]) {
+        const r = await proponer(sb, C, wk);
+        if (r) informe.propuesta.push(r);
       }
     }
     informe.ok = true;
