@@ -163,6 +163,13 @@ video{width:100%;border-radius:12px;background:#000}
 .pzpiece.ok{filter:none;cursor:default}
 .pzwrap.solved .pzframe img{opacity:1!important;filter:none}
 .pzwrap.solved .pzp{border-radius:0;border-color:transparent}
+.switch{position:relative;display:inline-block;width:52px;height:30px;flex:none;margin:0}
+.switch input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;z-index:1}
+.switch span{position:absolute;inset:0;border-radius:15px;background:var(--well);border:1px solid var(--line);box-shadow:inset 0 2px 4px var(--sh);transition:background .15s}
+.switch span::after{content:"";position:absolute;top:2px;left:2px;width:24px;height:24px;border-radius:50%;background:linear-gradient(180deg,var(--f1),var(--f2));box-shadow:0 2px 0 var(--edge),0 3px 6px -2px var(--sh);transition:transform .15s}
+.switch input:checked+span{background:var(--ok)}
+.switch input:checked+span::after{transform:translateX(22px)}
+.switch input:focus-visible+span{outline:3px solid var(--cream);outline-offset:2px}
 .modal .in.game{padding:14px}
 .gmstage{position:relative;border-radius:14px;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;margin-top:12px;background:#1d1c1a}
 .gmstage canvas{display:block;touch-action:none}
@@ -522,22 +529,25 @@ async function viewPartidos(el, c){
 }
 
 /* ---------- Juegos: ruleta y porra ---------- */
+const JUEGOS=[['puzle','Puzle del día','Patrocinadores y colaboradores, con cinco formatos'],['penaltis','Penaltis','Cinco tiros contra el portero'],['toques','Toques','Que no caiga el balón'],['ruleta','Ruleta diaria','Una tirada al día'],['porra','Porra del primer equipo','Pronóstico de cada partido']];
+const gameOn = k => (S.settings.juegos||{})[k] !== false;
 async function viewJuegos(el, c){
   const segs = ((S.settings.puntos||{}).ruleta||[[1],[2],[3],[5],[10],[25]]).map(s=>s[0]);
-  const pzP=pzPoints();
-  el.innerHTML = `<div class="box pzday"><img id="pzthumb" alt="" src="${puzzleOfDay().logo}"><div class="grow"><h2 style="margin:0 0 4px">Puzle del día</h2><p class="muted small" style="margin:0">Hoy: <b>${PZ_MODES[pzModeOfDay()].name}</b>, de ${esc(puzzleOfDay().name)}. ${pzP.f} puntos en fácil, ${pzP.d} en difícil y +${pzP.r} si lo haces rápido.</p></div></div>
-    <div class="grid2" style="margin:-4px 0 14px"><button id="pzgo">Jugar</button><button class="sec" id="pzfree">Otro puzle</button></div>
-    <div class="tiles"><button class="sec tile" id="gpen"><span class="ico">${svg('porteria')}</span>Penaltis<span class="muted small" style="font-family:Barlow,sans-serif;margin-top:-6px">${gamePts('penaltis')}</span></button>
-     <button class="sec tile" id="gtoq"><span class="ico">${svg('toques')}</span>Toques<span class="muted small" style="font-family:Barlow,sans-serif;margin-top:-6px">${gamePts('toques')}</span></button></div>
-    <div class="box center"><h2>Ruleta diaria</h2><p class="muted small">Una tirada al día. Si tiras 7 días seguidos, la del séptimo vale doble. Y una vez por semana, un día que nadie sabe, alguien se lleva un regalo.</p>
+  const pzP=pzPoints(), on=gameOn;
+  if(!JUEGOS.some(j=>on(j[0]))){ el.innerHTML='<div class="box center"><h2>Juegos</h2><p class="muted">Ahora mismo no hay juegos activos. Vuelve pronto.</p></div>'; return; }
+  el.innerHTML = `${on('puzle')?`<div class="box pzday"><img id="pzthumb" alt="" src="${puzzleOfDay().logo}"><div class="grow"><h2 style="margin:0 0 4px">Puzle del día</h2><p class="muted small" style="margin:0">Hoy: <b>${PZ_MODES[pzModeOfDay()].name}</b>, de ${esc(puzzleOfDay().name)}. ${pzP.f} puntos en fácil, ${pzP.d} en difícil y +${pzP.r} si lo haces rápido.</p></div></div>
+    <div class="grid2" style="margin:-4px 0 14px"><button id="pzgo">Jugar</button><button class="sec" id="pzfree">Otro puzle</button></div>`:''}
+    ${on('penaltis')||on('toques')?`<div class="tiles">${on('penaltis')?`<button class="sec tile" id="gpen"><span class="ico">${svg('porteria')}</span>Penaltis<span class="muted small" style="font-family:Barlow,sans-serif;margin-top:-6px">${gamePts('penaltis')}</span></button>`:''}
+     ${on('toques')?`<button class="sec tile" id="gtoq"><span class="ico">${svg('toques')}</span>Toques<span class="muted small" style="font-family:Barlow,sans-serif;margin-top:-6px">${gamePts('toques')}</span></button>`:''}</div>`:''}
+    ${on('ruleta')?`<div class="box center"><h2>Ruleta diaria</h2><p class="muted small">Una tirada al día. Si tiras 7 días seguidos, la del séptimo vale doble. Y una vez por semana, un día que nadie sabe, alguien se lleva un regalo.</p>
     <div class="wheelbox"><div class="pointer"></div>${wheelSVG(segs)}</div>
-    <button class="full" id="spin" ${c.spun_today||c.status!=='activo'?'disabled':''}>${c.spun_today?'Vuelve mañana':c.status!=='activo'?'Activa tu carnet para jugar':'¡Tirar!'}</button></div>
-    <div class="box" id="porra"><h2>Porra del primer equipo</h2><p class="muted">Cargando…</p></div>
-    <div class="box" id="rank"></div>`;
-  $('#pzgo').onclick=()=>openPuzzle(puzzleOfDay(),true,1);
-  $('#gpen').onclick=()=>openGame('penaltis'); $('#gtoq').onclick=()=>openGame('toques');
-  $('#pzfree').onclick=()=>{const L=puzzleItems(); openPuzzle(L[Math.floor(Math.random()*L.length)],false)};
-  $('#spin').onclick = () => guard(async()=>{
+    <button class="full" id="spin" ${c.spun_today||c.status!=='activo'?'disabled':''}>${c.spun_today?'Vuelve mañana':c.status!=='activo'?'Activa tu carnet para jugar':'¡Tirar!'}</button></div>`:''}
+    ${on('porra')?`<div class="box" id="porra"><h2>Porra del primer equipo</h2><p class="muted">Cargando…</p></div>
+    <div class="box" id="rank"></div>`:''}`;
+  if($('#pzgo')) $('#pzgo').onclick=()=>openPuzzle(puzzleOfDay(),true,1);
+  if($('#gpen')) $('#gpen').onclick=()=>openGame('penaltis'); if($('#gtoq')) $('#gtoq').onclick=()=>openGame('toques');
+  if($('#pzfree')) $('#pzfree').onclick=()=>{const L=puzzleItems(); openPuzzle(L[Math.floor(Math.random()*L.length)],false)};
+  if($('#spin')) $('#spin').onclick = () => guard(async()=>{
     $('#spin').disabled=true;
     const r = await rpc('spin_wheel',{p_member:c.id});
     const n=segs.length, a=360/n, target = 360*6 + (360 - (r.segment*a + a/2));
@@ -549,6 +559,7 @@ async function viewJuegos(el, c){
       await refreshCards();
     },4700);
   });
+  if(!on('porra')) return;
   const p = await rpc('porra_current');
   if(!p){$('#porra').innerHTML='<h2>Porra del primer equipo</h2><p class="muted small">No hay partido próximo del primer equipo cargado.</p>'}
   else{
@@ -1000,11 +1011,11 @@ function renderMerchantSignup(){
 
 /* ======================= PANEL DE GESTIÓN ======================= */
 async function viewAdmin(el){
-  const subs=[['resumen','Resumen'],['socios','Socios'],['partidos','Equipos y partidos'],['comercios','Comercios'],['premios','Premios'],['sorpresas','Sorpresas'],['loteria','Lotería y regalos'],['carteles','Carteles'],['ajustes','Ajustes']];
+  const subs=[['resumen','Resumen'],['socios','Socios'],['partidos','Equipos y partidos'],['comercios','Comercios'],['premios','Premios'],['sorpresas','Sorpresas'],['loteria','Lotería y regalos'],['carteles','Carteles'],['juegos','Juegos'],['ajustes','Ajustes']];
   el.innerHTML = `<div class="subnav">${subs.map(s=>`<button class="chip ${S.atab===s[0]?'on':''}" data-a="${s[0]}">${s[1]}</button>`).join('')}</div><div id="adm"><p class="muted">Cargando…</p></div>`;
   el.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{S.atab=b.dataset.a;render()});
   const box=$('#adm');
-  await ({resumen:aResumen,socios:aSocios,partidos:aPartidos,comercios:aComercios,premios:aPremios,sorpresas:aSorpresas,loteria:aLoteria,carteles:aCarteles,ajustes:aAjustes}[S.atab])(box);
+  await ({resumen:aResumen,socios:aSocios,partidos:aPartidos,comercios:aComercios,premios:aPremios,sorpresas:aSorpresas,loteria:aLoteria,carteles:aCarteles,juegos:aJuegos,ajustes:aAjustes}[S.atab])(box);
 }
 async function aResumen(b){
   const o=await rpc('admin_overview');
@@ -1143,6 +1154,15 @@ function printPages(pages){
   w.document.close();
 }
 
+async function aJuegos(b){
+  b.innerHTML=`<div class="box"><h3>Juegos del carnet</h3><p class="muted small">Activa o desactiva cada juego. Si lo desactivas, desaparece del carnet de todos los socios y deja de dar puntos.</p>
+    <ul class="list">${JUEGOS.map(j=>`<li><div class="grow"><b>${j[1]}</b><div class="muted small">${j[2]}</div></div><label class="switch"><input type="checkbox" data-g="${j[0]}" ${gameOn(j[0])?'checked':''} aria-label="${j[1]}"><span></span></label></li>`).join('')}</ul></div>`;
+  b.querySelectorAll('[data-g]').forEach(x=>x.onchange=()=>guard(async()=>{
+    const v=Object.assign({}, S.settings.juegos||{}, {[x.dataset.g]:x.checked});
+    const {error}=await sb.from('settings').upsert({key:'juegos',value:v}); if(error){ x.checked=!x.checked; throw error; }
+    S.settings.juegos=v; toast((JUEGOS.find(j=>j[0]===x.dataset.g)||[])[1]+(x.checked?' activado':' desactivado'));
+  }));
+}
 async function aAjustes(b){
   const pago=(S.settings.pago||{}).texto||'';
   b.innerHTML=`<div class="box"><h3>Cómo pagar (mientras no haya pago online)</h3><p class="muted small">Lo ven los socios pendientes de pago. Puedes usar {numero} para su nº de socio.</p>
