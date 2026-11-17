@@ -1,5 +1,6 @@
 # Fondo «Patrocinadores» del panel (photocall). Logos en blanco en logos/: el número delante es el nivel
-# (1 = principales: Concepto by Persa, S.E.T.A., MensaTui; 2 = Casa Pote, Marangel, Alipa, Inglesiños, Cluber; 3 = resto).
+# (1 = principales: Concepto by Persa, S.E.T.A., MensaTui; 2 = Casa Pote, Marangel, Alipa, Inglesiños, Cluber,
+# a3 arquitectura, Blanco Quintas, Maderas Porriño; 3 = resto).
 # Para cambiar patrocinadores: añadir o quitar PNG blancos con fondo transparente en logos/ y ejecutar python3 tools/patrocinadores/fondo.py
 import os, itertools
 from PIL import Image, ImageDraw, ImageFilter
@@ -36,7 +37,7 @@ def fondo(W,H,path):
             y+=rh+int(48*k)
         else:
             # fila mezclada: segundos y resto
-            rh=int(CFG[2][0]*k); x=int((20 if row%4==1 else 70)*k); pat=[2,3,3,2,3,3]
+            rh=int(CFG[2][0]*k); x=int((20 if row%4==1 else 70)*k); pat=[2,3,2,3,2,3]
             items=[]
             for t in itertools.cycle(pat):
                 name,im=next(t2) if t==2 else next(t3); im=fit(im,t,k)
