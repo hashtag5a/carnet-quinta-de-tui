@@ -141,6 +141,28 @@ video{width:100%;border-radius:12px;background:#000}
 .pzp.sel{outline:3px solid #E0B84F;outline-offset:-3px;transform:scale(.94)}
 .pzp.ok{box-shadow:none;cursor:default}
 .pzboard.solved{gap:0}.pzboard.solved .pzp{border-radius:0}
+.pzmodes{margin-top:10px}.pzmodes .chip{font-size:.8rem;padding:6px 11px}
+.pzwrap{display:flex;justify-content:center}
+.pzboard.abs{display:block;position:relative}
+.pzboard.abs .pzp{position:absolute;left:3px;top:3px;width:calc((100% - 6px)/var(--n));height:calc((100% - 6px)/var(--n));border-radius:4px;border:1px solid rgba(0,0,0,.35);transition:transform .16s ease,opacity .4s}
+.pzboard.abs .pzp.sel{outline:3px solid #E0B84F;outline-offset:-3px}
+.pzp.rot{transition:transform .2s ease}
+.pzcards{display:grid;grid-template-columns:repeat(var(--c),1fr);gap:8px;width:100%}
+.pzcard{position:relative;aspect-ratio:1;padding:0;min-height:0;border:0;background:none;box-shadow:none;perspective:600px}
+.pzcard span{position:absolute;inset:0;border-radius:10px;backface-visibility:hidden;transition:transform .35s ease;box-shadow:0 3px 0 var(--edge),0 8px 14px -8px var(--sh)}
+.pzcard .back{background:linear-gradient(145deg,#262421,#0B0B0A);display:flex;align-items:center;justify-content:center}
+.pzcard .back img{width:60%;border-radius:50%;opacity:.85}
+.pzcard .face{transform:rotateY(180deg);background-color:#121110}
+.pzcard.up .back{transform:rotateY(180deg)}.pzcard.up .face{transform:rotateY(0)}
+.pzcard.ok .face{box-shadow:0 0 0 3px #7BC47F}
+.pzjig{position:relative;touch-action:none;user-select:none;-webkit-user-select:none}
+.pzframe{position:absolute;left:0;top:0;border-radius:6px;background:var(--well);box-shadow:inset 0 2px 6px var(--sh);overflow:hidden}
+.pzframe img{width:100%;height:100%;display:block;filter:grayscale(.3)}
+.pzpiece{position:absolute;cursor:grab;transition:transform .15s ease;filter:drop-shadow(0 3px 4px rgba(0,0,0,.45));touch-action:none}
+.pzpiece.drag{cursor:grabbing;transition:none;filter:drop-shadow(0 10px 12px rgba(0,0,0,.5))}
+.pzpiece.ok{filter:none;cursor:default}
+.pzwrap.solved .pzframe img{opacity:1!important;filter:none}
+.pzwrap.solved .pzp{border-radius:0;border-color:transparent}
 .pzday{display:flex;gap:14px;align-items:center}
 .pzday img,.pzlogo{background:#fff;border-radius:14px;border:1px solid var(--line)}
 .pzday img{width:76px;height:76px;object-fit:contain;padding:4px;flex:none}
@@ -493,14 +515,15 @@ async function viewPartidos(el, c){
 /* ---------- Juegos: ruleta y porra ---------- */
 async function viewJuegos(el, c){
   const segs = ((S.settings.puntos||{}).ruleta||[[1],[2],[3],[5],[10],[25]]).map(s=>s[0]);
-  el.innerHTML = `<div class="box pzday"><img id="pzthumb" alt="" src="${puzzleOfDay().logo}"><div class="grow"><h2 style="margin:0 0 4px">Puzle del día</h2><p class="muted small" style="margin:0">Hoy, de ${esc(puzzleOfDay().name)}. ${(S.settings.puntos||{}).puzle||3} puntos si lo resuelves.</p></div></div>
+  const pzP=pzPoints();
+  el.innerHTML = `<div class="box pzday"><img id="pzthumb" alt="" src="${puzzleOfDay().logo}"><div class="grow"><h2 style="margin:0 0 4px">Puzle del día</h2><p class="muted small" style="margin:0">Hoy: <b>${PZ_MODES[pzModeOfDay()].name}</b>, de ${esc(puzzleOfDay().name)}. ${pzP.f} puntos en fácil, ${pzP.d} en difícil y +${pzP.r} si lo haces rápido.</p></div></div>
     <div class="grid2" style="margin:-4px 0 14px"><button id="pzgo">Jugar</button><button class="sec" id="pzfree">Otro puzle</button></div>
     <div class="box center"><h2>Ruleta diaria</h2><p class="muted small">Una tirada al día. Si tiras 7 días seguidos, la del séptimo vale doble. Y una vez por semana, un día que nadie sabe, alguien se lleva un regalo.</p>
     <div class="wheelbox"><div class="pointer"></div>${wheelSVG(segs)}</div>
     <button class="full" id="spin" ${c.spun_today||c.status!=='activo'?'disabled':''}>${c.spun_today?'Vuelve mañana':c.status!=='activo'?'Activa tu carnet para jugar':'¡Tirar!'}</button></div>
     <div class="box" id="porra"><h2>Porra del primer equipo</h2><p class="muted">Cargando…</p></div>
     <div class="box" id="rank"></div>`;
-  $('#pzgo').onclick=()=>openPuzzle(puzzleOfDay(),true);
+  $('#pzgo').onclick=()=>openPuzzle(puzzleOfDay(),true,1);
   $('#pzfree').onclick=()=>{const L=puzzleItems(); openPuzzle(L[Math.floor(Math.random()*L.length)],false)};
   $('#spin').onclick = () => guard(async()=>{
     $('#spin').disabled=true;
@@ -574,39 +597,159 @@ async function puzzleImage(it){
   return cv.toDataURL('image/jpeg',.88);
 }
 function fmtSecs(t){ return Math.floor(t/60)+':'+String(t%60).padStart(2,'0'); }
-async function openPuzzle(it, daily, n){
-  n=n||3; const c=cur();
-  const m=modal(`<div class="pz"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${daily?'Puzle del día':'Puzle'}</h2><button class="sec" style="min-height:40px;padding:8px 14px;flex:none" onclick="closeModal()">Cerrar</button></div>
-    <div class="pzbar"><span>Tiempo <b id="pzt">0:00</b></span><span>Movimientos <b id="pzm">0</b></span><span class="chips"><button class="chip ${n===3?'on':''}" id="pz3">Fácil</button><button class="chip ${n===4?'on':''}" id="pz4">Difícil</button></span></div>
-    <div class="pzboard" id="pzb" style="--n:${n}"><p class="muted center">Preparando…</p></div>
-    <p class="muted small center">Toca una pieza y luego otra para cambiarlas de sitio. Las que están en su sitio se quedan fijas.</p>
+/* Formatos del puzle: cada día toca uno distinto. Nivel 1 = fácil, 2 = difícil (más puntos). */
+const PZ_MODES = {
+  deslizar: {name:'Deslizante', help:'Toca una pieza junto al hueco para moverla. Coloca todas en su sitio.'},
+  encajar:  {name:'Piezas que encajan', help:'Arrastra cada pieza a su sitio en el marco. Encaja sola cuando está cerca.'},
+  girar:    {name:'Casillas que giran', help:'Toca una casilla para girarla. Deja todas bien orientadas.'},
+  parejas:  {name:'Parejas', help:'Da la vuelta a dos cartas. Encuentra todas las parejas iguales.'},
+  cambiar:  {name:'Intercambio', help:'Toca una pieza y luego otra para cambiarlas de sitio. Las que están bien se quedan fijas.'}
+};
+const PZ_ORDER = ['deslizar','encajar','girar','parejas','cambiar'];
+const pzModeOfDay = () => PZ_ORDER[madridDayNo() % PZ_ORDER.length];
+function pzPoints(){ const p=S.settings.puntos||{}; return {f:p.puzle||3, d:p.puzle_dificil||5, r:p.puzle_rapido||2}; }
+
+async function openPuzzle(it, daily, level, mode){
+  level = level||1; mode = mode||(daily?pzModeOfDay():PZ_ORDER[Math.floor(Math.random()*PZ_ORDER.length)]);
+  const c = cur(), M = PZ_MODES[mode];
+  const m = modal(`<div class="pz"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${daily?'Puzle del día':'Puzle'}</h2><button class="sec" style="min-height:40px;padding:8px 14px;flex:none" onclick="closeModal()">Cerrar</button></div>
+    ${daily?`<p class="muted small" style="margin:4px 0 0">Hoy toca: <b>${M.name}</b></p>`:`<div class="chips pzmodes">${PZ_ORDER.map(k=>`<button class="chip ${k===mode?'on':''}" data-m="${k}">${PZ_MODES[k].name}</button>`).join('')}</div>`}
+    <div class="pzbar"><span>Tiempo <b id="pzt">0:00</b></span><span>Movimientos <b id="pzm">0</b></span><span class="chips"><button class="chip ${level===1?'on':''}" data-l="1">Fácil</button><button class="chip ${level===2?'on':''}" data-l="2">Difícil</button></span></div>
+    <div id="pzb" class="pzwrap"><p class="muted center">Preparando…</p></div>
+    <p class="muted small center" style="margin:8px 0">${M.help}</p>
     <button class="sec full" id="pzv">Ver la imagen</button></div>`);
   m.querySelector('.in').classList.add('wide');
-  const img=await puzzleImage(it); const b=$('#pzb');
-  let order=[...Array(n*n).keys()];
-  do{ for(let i=order.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];} }
-  while(order.filter((v,i)=>v===i).length>Math.floor(n/2));
-  let sel=-1, moves=0, t0=Date.now(), done=false;
-  const tick=setInterval(()=>{ if(!document.body.contains(b)){clearInterval(tick);return} if(!done) $('#pzt').textContent=fmtSecs(Math.floor((Date.now()-t0)/1000)); },500);
-  const draw=()=>{ b.innerHTML=order.map((v,i)=>`<button class="pzp ${v===i?'ok':''} ${sel===i?'sel':''}" data-i="${i}" aria-label="Pieza ${i+1}" style="background-image:url(${img});background-position:${(v%n)/(n-1)*100}% ${Math.floor(v/n)/(n-1)*100}%"></button>`).join(''); };
-  draw();
-  b.onclick=async e=>{
-    const p=e.target.closest('.pzp'); if(!p||done) return; const i=+p.dataset.i; if(order[i]===i) return;
-    if(sel<0){sel=i;draw();return} if(sel===i){sel=-1;draw();return}
-    [order[sel],order[i]]=[order[i],order[sel]]; sel=-1; moves++; $('#pzm').textContent=moves; draw();
-    if(order.every((v,k)=>v===k)){
-      done=true; clearInterval(tick); const secs=Math.floor((Date.now()-t0)/1000); b.classList.add('solved');
-      let pts=null, already=false;
-      if(c && c.status==='activo'){ try{ const r=await rpc('puzzle_done',{p_member:c.id,p_sponsor:it.id,p_daily:!!daily,p_seconds:secs,p_moves:moves}); pts=r&&r.points; already=r&&r.already; if(pts) refreshCards(); }catch(err){} }
-      setTimeout(()=>{ closeModal(); modal(`<div class="center"><h2>¡Conseguido!</h2><p class="muted">${fmtSecs(secs)} · ${moves} movimientos</p>
-        ${pts?`<div class="big">+${pts}</div><p>puntos para tu carnet</p>`:daily&&already?'<p class="muted small">Los puntos del puzle de hoy ya los tienes. Mañana, otro.</p>':''}
+  m.querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>{closeModal();openPuzzle(it,daily,+b.dataset.l,mode)});
+  m.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{closeModal();openPuzzle(it,daily,level,b.dataset.m)});
+  const img = await puzzleImage(it), box = $('#pzb'); box.innerHTML='';
+  let moves=0, t0=Date.now(), done=false;
+  const tick=setInterval(()=>{ if(!document.body.contains(box)){clearInterval(tick);return} if(!done) $('#pzt').textContent=fmtSecs(Math.floor((Date.now()-t0)/1000)); },500);
+  const api = {
+    move(){ moves++; const e=$('#pzm'); if(e) e.textContent=moves; },
+    async solved(){
+      if(done) return; done=true; clearInterval(tick); const secs=Math.floor((Date.now()-t0)/1000);
+      box.classList.add('solved');
+      let r=null;
+      if(c && c.status==='activo'){ try{ r=await rpc('puzzle_done',{p_member:c.id,p_sponsor:it.id,p_daily:!!daily,p_mode:mode,p_level:level,p_seconds:secs,p_moves:moves}); if(r&&r.points) refreshCards(); }catch(err){} }
+      const pts=r&&r.points;
+      setTimeout(()=>{ closeModal(); modal(`<div class="center"><h2>¡Conseguido!</h2><p class="muted">${M.name} · ${level===2?'difícil':'fácil'} · ${fmtSecs(secs)} · ${moves} movimientos</p>
+        ${pts?`<div class="big">+${pts}</div><p>puntos para tu carnet${r.bonus?` <span class="muted small">(incluye +${r.bonus} por rapidez)</span>`:''}</p>`:daily&&r&&r.already?'<p class="muted small">Los puntos del puzle de hoy ya los tienes. Mañana, otro.</p>':''}
         <div class="pzlogo"><img src="${it.logo}" alt="${esc(it.name)}"></div><p class="small">Este puzle te lo trae <b>${esc(it.name)}</b></p>
-        <button class="full mt" onclick="closeModal();openPuzzle(puzzleItems()[Math.floor(Math.random()*puzzleItems().length)],false,${n})">Otro puzle</button>
-        <button class="sec full mt" onclick="closeModal()">Cerrar</button></div>`); },700);
+        <button class="full mt" onclick="closeModal();openPuzzle(puzzleItems()[Math.floor(Math.random()*puzzleItems().length)],false,${level})">Otro puzle</button>
+        <button class="sec full mt" onclick="closeModal()">Cerrar</button></div>`); },900);
     }
   };
-  $('#pz3').onclick=()=>{closeModal();openPuzzle(it,daily,3)}; $('#pz4').onclick=()=>{closeModal();openPuzzle(it,daily,4)};
+  ({deslizar:pzSlide, encajar:pzJigsaw, girar:pzRotate, parejas:pzPairs, cambiar:pzSwap})[mode](box, img, level, api);
   $('#pzv').onclick=()=>{ const v=modal(`<img src="${img}" alt="${esc(it.name)}" style="width:100%;border-radius:12px;display:block"><button class="full mt" id="pzvc">Volver al puzle</button>`); v.querySelector('#pzvc').onclick=()=>v.remove(); };
+}
+const pzBg = (img,n,v) => `background-image:url(${img});background-size:${n*100}% ${n*100}%;background-position:${(v%n)/(n-1)*100}% ${Math.floor(v/n)/(n-1)*100}%`;
+const shuffle = a => { for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; };
+
+/* Deslizante con hueco (la última pieza falta hasta el final) */
+function pzSlide(box, img, level, api){
+  const n=level===2?4:3, N=n*n, H=N-1; let cell=[...Array(N).keys()]; // cell[i] = pieza en la casilla i
+  let hole=N-1, prev=-1;
+  for(let k=0;k<N*40 || cell.every((v,i)=>v===i);k++){
+    const r=Math.floor(hole/n), cc=hole%n, nb=[];
+    if(r>0)nb.push(hole-n); if(r<n-1)nb.push(hole+n); if(cc>0)nb.push(hole-1); if(cc<n-1)nb.push(hole+1);
+    const ch=nb.filter(x=>x!==prev); const t=ch[Math.floor(Math.random()*ch.length)];
+    [cell[hole],cell[t]]=[cell[t],cell[hole]]; prev=hole; hole=t;
+  }
+  box.innerHTML=`<div class="pzboard abs" style="--n:${n}">${[...Array(N).keys()].map(v=>`<button class="pzp" data-v="${v}" aria-label="Pieza ${v+1}" style="${pzBg(img,n,v)};${v===H?'opacity:0;pointer-events:none':''}"></button>`).join('')}</div>`;
+  const B=box.firstChild, el={}; B.querySelectorAll('.pzp').forEach(b=>el[b.dataset.v]=b);
+  const place=()=>cell.forEach((v,i)=>{ el[v].style.transform=`translate(${(i%n)*100}%,${Math.floor(i/n)*100}%)`; el[v].classList.toggle('ok',v===i&&v!==H); });
+  place();
+  B.onclick=e=>{
+    const b=e.target.closest('.pzp'); if(!b) return; const i=cell.indexOf(+b.dataset.v), h=cell.indexOf(H);
+    const ri=Math.floor(i/n), rh=Math.floor(h/n);
+    let step=0; if(ri===rh) step=i<h?-1:1; else if(i%n===h%n) step=i<h?-n:n; else return;
+    for(let k=h; k!==i; k+=step){ [cell[k],cell[k+step]]=[cell[k+step],cell[k]]; }
+    api.move(); place();
+    if(cell.every((v,k)=>v===k)){ el[H].style.opacity=1; api.solved(); }
+  };
+}
+/* Intercambio de piezas */
+function pzSwap(box, img, level, api){
+  const n=level===2?4:3, N=n*n; let cell=[...Array(N).keys()];
+  do shuffle(cell); while(cell.filter((v,i)=>v===i).length>Math.floor(n/2));
+  box.innerHTML=`<div class="pzboard abs" style="--n:${n}">${cell.map(v=>`<button class="pzp" data-v="${v}" aria-label="Pieza ${v+1}" style="${pzBg(img,n,v)}"></button>`).join('')}</div>`;
+  const B=box.firstChild, el={}; B.querySelectorAll('.pzp').forEach(b=>el[b.dataset.v]=b); let sel=-1;
+  const place=()=>cell.forEach((v,i)=>{ el[v].style.transform=`translate(${(i%n)*100}%,${Math.floor(i/n)*100}%)`; el[v].classList.toggle('ok',v===i); el[v].classList.toggle('sel',i===sel); });
+  place();
+  B.onclick=e=>{
+    const b=e.target.closest('.pzp'); if(!b) return; const i=cell.indexOf(+b.dataset.v); if(cell[i]===i) return;
+    if(sel<0||sel===i){ sel=sel===i?-1:i; place(); return; }
+    [cell[sel],cell[i]]=[cell[i],cell[sel]]; sel=-1; api.move(); place();
+    if(cell.every((v,k)=>v===k)) api.solved();
+  };
+}
+/* Casillas que giran */
+function pzRotate(box, img, level, api){
+  const n=level===2?4:3, N=n*n; const rot=[...Array(N)].map(()=>Math.floor(Math.random()*4));
+  while(rot.filter(r=>r%4).length<Math.ceil(N*.7)) rot[Math.floor(Math.random()*N)]=1+Math.floor(Math.random()*3);
+  box.innerHTML=`<div class="pzboard" style="--n:${n}">${rot.map((r,v)=>`<button class="pzp rot" data-v="${v}" aria-label="Casilla ${v+1}" style="${pzBg(img,n,v)};transform:rotate(${r*90}deg)"></button>`).join('')}</div>`;
+  const B=box.firstChild; const mark=()=>B.querySelectorAll('.pzp').forEach(b=>b.classList.toggle('ok',rot[b.dataset.v]%4===0));
+  mark();
+  B.onclick=e=>{
+    const b=e.target.closest('.pzp'); if(!b) return; const v=+b.dataset.v; rot[v]++; b.style.transform=`rotate(${rot[v]*90}deg)`;
+    api.move(); mark(); if(rot.every(r=>r%4===0)) api.solved();
+  };
+}
+/* Parejas de memoria: las cartas son trozos de la imagen */
+function pzPairs(box, img, level, api){
+  const pick = level===2 ? shuffle([0,2,6,8]).slice(0,3).concat([1,3,4,5,7]) : [1,3,4,5,7,-1];
+  const deck = shuffle(pick.concat(pick)); const cols=4;
+  box.innerHTML=`<div class="pzcards" style="--c:${cols}">${deck.map((v,i)=>`<button class="pzcard" data-i="${i}" data-v="${v}" aria-label="Carta ${i+1}"><span class="back"><img src="escudo.jpg" alt=""></span><span class="face" style="${v<0?`background-image:url(${img});background-size:100% 100%`:pzBg(img,3,v)}"></span></button>`).join('')}</div>`;
+  const B=box.firstChild; let open=[], busy=false, found=0;
+  B.onclick=e=>{
+    const b=e.target.closest('.pzcard'); if(!b||busy||b.classList.contains('up')) return;
+    b.classList.add('up'); open.push(b); if(open.length<2) return;
+    api.move(); const [a,c2]=open; open=[];
+    if(a.dataset.v===c2.dataset.v){ a.classList.add('ok'); c2.classList.add('ok'); found++; if(found===pick.length) api.solved(); }
+    else { busy=true; setTimeout(()=>{a.classList.remove('up'); c2.classList.remove('up'); busy=false;},850); }
+  };
+}
+/* Piezas que encajan: piezas con salientes, se arrastran desde abajo hasta el marco */
+function pzJigsaw(box, img, level, api){
+  const n=level===2?4:3;
+  const W=Math.max(220, Math.min(box.clientWidth||320, Math.floor((window.innerHeight*.9-230)/1.85)));
+  const s=W/n, mg=s*.28, P=s+2*mg, sc=.5, trayH=Math.ceil(n*n/ (n+1)) * P*sc + 16;
+  box.innerHTML=`<div class="pzjig" style="width:${W}px;height:${W+trayH+10}px"><div class="pzframe" style="width:${W}px;height:${W}px"><img src="${img}" alt="" style="opacity:${level===2?.10:.2}"></div></div>`;
+  const J=box.firstChild, src=new Image(); src.src=img;
+  const hz=[...Array(n)].map(()=>[...Array(n)].map(()=>Math.random()<.5?1:-1)), vt=[...Array(n)].map(()=>[...Array(n)].map(()=>Math.random()<.5?1:-1));
+  const edge=(g,x0,y0,x1,y1,k)=>{ const L=Math.hypot(x1-x0,y1-y0), dx=(x1-x0)/L, dy=(y1-y0)/L, nx=dy, ny=-dx;
+    const p=(t,h)=>[x0+dx*t*L+nx*h*L*k, y0+dy*t*L+ny*h*L*k];
+    if(!k){ g.lineTo(x1,y1); return; }
+    g.lineTo(...p(.37,0)); g.bezierCurveTo(...p(.43,0),...p(.30,.26),...p(.5,.26)); g.bezierCurveTo(...p(.70,.26),...p(.57,0),...p(.63,0)); g.lineTo(x1,y1); };
+  const pieces=[]; let placed=0, z=10;
+  const build=()=>{
+    const order=shuffle([...Array(n*n).keys()]), per=n+1, cw=W/per;
+    order.forEach((idx,k)=>{
+      const r=Math.floor(idx/n), cc=idx%n;
+      const top=r?-hz[r][cc]:0, bottom=r<n-1?hz[r+1][cc]:0, left=cc?-vt[r][cc]:0, right=cc<n-1?vt[r][cc+1]:0;
+      const cv=document.createElement('canvas'), dpr=Math.min(2,window.devicePixelRatio||1); cv.width=cv.height=Math.round(P*dpr); cv.className='pzpiece';
+      cv.style.width=cv.style.height=P+'px'; const g=cv.getContext('2d'); g.scale(dpr,dpr);
+      g.beginPath(); g.moveTo(mg,mg); edge(g,mg,mg,mg+s,mg,top); edge(g,mg+s,mg,mg+s,mg+s,right); edge(g,mg+s,mg+s,mg,mg+s,bottom); edge(g,mg,mg+s,mg,mg,left); g.closePath();
+      g.save(); g.clip(); g.drawImage(src, mg-cc*s, mg-r*s, W, W); g.restore();
+      g.lineWidth=1.5; g.strokeStyle='rgba(255,255,255,.55)'; g.stroke();
+      const tx=cc*s-mg, ty=r*s-mg, col=k%per, row=Math.floor(k/per);
+      const x=col*cw+cw/2-P/2+(Math.random()*8-4), y=W+10+row*P*sc+P*sc/2-P/2+(Math.random()*6-4);
+      const pc={cv,tx,ty,x,y,ok:false}; cv.dataset.tx=tx; cv.dataset.ty=ty; pieces.push(pc); J.appendChild(cv); pos(pc,true); drag(pc);
+    });
+  };
+  const pos=(pc,small)=>{ pc.cv.style.left=pc.x+'px'; pc.cv.style.top=pc.y+'px'; pc.cv.style.transform=small?`scale(${sc})`:'scale(1)'; };
+  const drag=pc=>{
+    pc.cv.addEventListener('pointerdown',e=>{
+      if(pc.ok) return; e.preventDefault(); pc.cv.setPointerCapture(e.pointerId); pc.cv.style.zIndex=++z; pc.cv.classList.add('drag');
+      const rect=J.getBoundingClientRect(); const ox=e.clientX-rect.left-pc.x, oy=e.clientY-rect.top-pc.y;
+      const mv=ev=>{ pc.x=ev.clientX-rect.left-ox; pc.y=ev.clientY-rect.top-oy; pos(pc,false); };
+      const up=()=>{ pc.cv.removeEventListener('pointermove',mv); pc.cv.removeEventListener('pointerup',up); pc.cv.removeEventListener('pointercancel',up); pc.cv.classList.remove('drag'); api.move();
+        if(Math.hypot(pc.x-pc.tx,pc.y-pc.ty)<s*.32){ pc.x=pc.tx; pc.y=pc.ty; pc.ok=true; pc.cv.classList.add('ok'); pc.cv.style.zIndex=1; pos(pc,false); placed++; if(placed===n*n) api.solved(); }
+        else pos(pc, pc.y+P/2>W); };
+      pc.cv.addEventListener('pointermove',mv); pc.cv.addEventListener('pointerup',up); pc.cv.addEventListener('pointercancel',up);
+    });
+  };
+  src.decode ? src.decode().then(build) : (src.onload=build);
 }
 function wheelSVG(segs){
   const n=segs.length, r=140, a=2*Math.PI/n; let s='';
