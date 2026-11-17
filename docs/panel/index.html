@@ -1144,7 +1144,9 @@ function fondoImg(url){
 }
 async function cargarFondo(){
   const f = ui.fondo && (S.fondos || {})[ui.fondo];
-  fondoActual = f ? {img: await fondoImg(f.url), dim: f.dim} : null;
+  // Un fondo puede traer una imagen por formato (urlPost 4:5, urlCuadrado 1:1); si no, se usa url recortada.
+  const url = f && ((ui.formato === "post" && f.urlPost) || (ui.formato === "cuadrado" && f.urlCuadrado) || f.url);
+  fondoActual = f ? {img: await fondoImg(url), dim: f.dim, vineta: f.vineta !== false} : null;
 }
 async function cargarEscudos(data){
   await Promise.all(data.matches.flatMap(m => [m.home, m.away]).map(async t => { t.img = await crestImg(t.logo); }));
@@ -1307,6 +1309,7 @@ function bgDraw(c, W, H){
     const im = fondoActual.img, k = Math.max(W / im.width, H / im.height);
     c.drawImage(im, (W - im.width*k)/2, (H - im.height*k)/2, im.width*k, im.height*k);
     c.fillStyle = "rgba(12,12,12," + (fondoActual.dim ?? 0.35) + ")"; c.fillRect(0,0,W,H);
+    if (!fondoActual.vineta) return;
     const v = c.createRadialGradient(W/2, H/2, Math.min(W,H)*0.25, W/2, H/2, Math.max(W,H)*0.75);
     v.addColorStop(0, "rgba(12,12,12,.25)"); v.addColorStop(1, "rgba(12,12,12,.55)"); c.fillStyle = v; c.fillRect(0,0,W,H);
     return;
