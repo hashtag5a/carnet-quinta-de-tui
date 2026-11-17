@@ -131,6 +131,21 @@ video{width:100%;border-radius:12px;background:#000}
 .person{border:1px dashed var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
 .center{text-align:center}
 .mt{margin-top:12px}
+.modal .in.wide{max-width:520px}
+.pz h2{font-size:1.3rem}
+.pzbar{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;justify-content:space-between;margin:12px 0;font-size:.9rem;color:var(--muted)}
+.pzbar b{color:var(--cream);font-family:var(--display);font-size:1.1rem;font-weight:600}
+.pzboard{display:grid;grid-template-columns:repeat(var(--n),1fr);gap:3px;width:100%;aspect-ratio:1;background:var(--well);padding:3px;border-radius:14px;box-shadow:inset 0 2px 6px var(--sh);margin-bottom:10px}
+.pzp{padding:0;min-height:0;border:0;border-radius:6px;background-size:calc(var(--n)*100%) calc(var(--n)*100%);background-color:#121110;box-shadow:0 2px 0 rgba(0,0,0,.35);aspect-ratio:1;width:100%;transition:transform .12s ease,outline-color .12s}
+.pzp:active{transform:scale(.96)}
+.pzp.sel{outline:3px solid #E0B84F;outline-offset:-3px;transform:scale(.94)}
+.pzp.ok{box-shadow:none;cursor:default}
+.pzboard.solved{gap:0}.pzboard.solved .pzp{border-radius:0}
+.pzday{display:flex;gap:14px;align-items:center}
+.pzday img,.pzlogo{background:linear-gradient(135deg,#4A3520,#121110 50%,#22313A);border-radius:14px}
+.pzday img{width:76px;height:76px;object-fit:contain;padding:10px;flex:none}
+.pzlogo{padding:18px;margin:14px auto 8px;max-width:240px}
+.pzlogo img{max-width:100%;max-height:120px;display:block;margin:0 auto}
 table{width:100%;border-collapse:collapse;font-size:.88rem}
 td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}
 </style>
@@ -478,11 +493,15 @@ async function viewPartidos(el, c){
 /* ---------- Juegos: ruleta y porra ---------- */
 async function viewJuegos(el, c){
   const segs = ((S.settings.puntos||{}).ruleta||[[1],[2],[3],[5],[10],[25]]).map(s=>s[0]);
-  el.innerHTML = `<div class="box center"><h2>Ruleta diaria</h2><p class="muted small">Una tirada al día. Si tiras 7 días seguidos, la del séptimo vale doble. Y una vez por semana, un día que nadie sabe, alguien se lleva un regalo.</p>
+  el.innerHTML = `<div class="box pzday"><img id="pzthumb" alt="" src="${puzzleOfDay().logo}"><div class="grow"><h2 style="margin:0 0 4px">Puzle del día</h2><p class="muted small" style="margin:0">Hoy, de ${esc(puzzleOfDay().name)}. ${(S.settings.puntos||{}).puzle||3} puntos si lo resuelves.</p></div></div>
+    <div class="grid2" style="margin:-4px 0 14px"><button id="pzgo">Jugar</button><button class="sec" id="pzfree">Otro puzle</button></div>
+    <div class="box center"><h2>Ruleta diaria</h2><p class="muted small">Una tirada al día. Si tiras 7 días seguidos, la del séptimo vale doble. Y una vez por semana, un día que nadie sabe, alguien se lleva un regalo.</p>
     <div class="wheelbox"><div class="pointer"></div>${wheelSVG(segs)}</div>
     <button class="full" id="spin" ${c.spun_today||c.status!=='activo'?'disabled':''}>${c.spun_today?'Vuelve mañana':c.status!=='activo'?'Activa tu carnet para jugar':'¡Tirar!'}</button></div>
     <div class="box" id="porra"><h2>Porra del primer equipo</h2><p class="muted">Cargando…</p></div>
     <div class="box" id="rank"></div>`;
+  $('#pzgo').onclick=()=>openPuzzle(puzzleOfDay(),true);
+  $('#pzfree').onclick=()=>{const L=puzzleItems(); openPuzzle(L[Math.floor(Math.random()*L.length)],false)};
   $('#spin').onclick = () => guard(async()=>{
     $('#spin').disabled=true;
     const r = await rpc('spin_wheel',{p_member:c.id});
@@ -510,6 +529,81 @@ async function viewJuegos(el, c){
   }
   const rk = await rpc('porra_ranking');
   $('#rank').innerHTML = `<h3>Ranking de la porra</h3>${rk.length?`<table>${rk.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.name)}</td><td class="muted small">${r.exactos} exactos</td><td><b>${r.pts}</b></td></tr>`).join('')}</table>`:'<p class="muted small">Todavía no hay puntos esta temporada.</p>'}`;
+}
+/* ---------- puzle de patrocinadores (más adelante, también comercios colaboradores) ----------
+   Nivel 1 sale más a menudo como puzle del día. Para añadir uno: su PNG blanco con fondo transparente en patrocinadores/ y una línea aquí. */
+const PATROCINADORES = [
+  ['persa','Concepto by Persa Cociñas',1],['seta','S.E.T.A.',1],['mensatui','MensaTui Logística',1],
+  ['casapote','Restaurante Casa Pote',2],['marangel','Marangel',2],['alipa','Estudio Alipa Cociñas',2],['inglesinos','Academia Inglesiños',2],
+  ['cluber','Cluber',2],['a3','a3 arquitectura',2],['blancoquintas','Blanco Quintas',2],['maderas','Maderas Porriño',2],
+  ['cal','CAL Construcciones y Servicios',3],['dizgamallo','Gestoría Diz Gamallo',3],['life','LIFe · Laboratorio de Informática Forense Europeo',3],
+  ['nobel','Espacio Lector Nobel',3],['ponyexpress','Pony Express',3],['concellotui','Concello de Tui',3],['deputacion','Deputación de Pontevedra',3],['xunta','Xunta de Galicia',3]
+].map(([id,name,tier])=>({id,name,tier,logo:'patrocinadores/'+id+'.png'}));
+function puzzleItems(){ return PATROCINADORES; }
+function madridDayNo(){ const d=new Date().toLocaleDateString('en-CA',{timeZone:'Europe/Madrid'}); return Math.floor(Date.parse(d+'T00:00:00Z')/864e5); }
+function puzzleOfDay(){
+  const items=puzzleItems(), rot=[];
+  items.forEach(it=>{ for(let k=0;k<(it.tier===1?3:it.tier===2?2:1);k++) rot.push(it); });
+  let seed=20261117; const rnd=()=>(seed=(seed*1103515245+12345)%2147483648)/2147483648;
+  for(let i=rot.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[rot[i],rot[j]]=[rot[j],rot[i]];}
+  return rot[madridDayNo()%rot.length];
+}
+const imgCache={};
+function loadImg(src){ return imgCache[src] || (imgCache[src]=new Promise((ok,ko)=>{const i=new Image(); i.onload=()=>ok(i); i.onerror=ko; i.src=src;})); }
+/* La imagen del puzle: fondo con luz y escudo de marca de agua (para que cada pieza sea distinta), logo y nombre */
+async function puzzleImage(it){
+  const S2=720, cv=document.createElement('canvas'); cv.width=cv.height=S2; const c=cv.getContext('2d');
+  const g=c.createLinearGradient(0,0,S2,S2); g.addColorStop(0,'#4A3520'); g.addColorStop(.48,'#121110'); g.addColorStop(1,'#22313A');
+  c.fillStyle=g; c.fillRect(0,0,S2,S2);
+  c.save(); c.globalAlpha=.07; c.fillStyle='#F1EAD8';
+  for(let k=-2;k<7;k++){ c.beginPath(); c.moveTo(k*150,0); c.lineTo(k*150+70,0); c.lineTo(k*150-290,S2); c.lineTo(k*150-360,S2); c.fill(); }
+  c.restore();
+  try{ const e=await loadImg('escudo.jpg'); c.save(); c.globalAlpha=.12; c.beginPath(); c.arc(S2*.8,S2*.82,S2*.42,0,7); c.clip(); c.drawImage(e,S2*.38,S2*.4,S2*.84,S2*.84); c.restore(); }catch(e){}
+  const rg=c.createRadialGradient(S2/2,S2*.42,20,S2/2,S2*.42,S2*.42); rg.addColorStop(0,'rgba(255,240,210,.16)'); rg.addColorStop(1,'rgba(255,240,210,0)');
+  c.fillStyle=rg; c.fillRect(0,0,S2,S2);
+  c.strokeStyle='rgba(241,234,216,.55)'; c.lineWidth=4; c.strokeRect(18,18,S2-36,S2-36);
+  const L=await loadImg(it.logo); const s=Math.min(S2*.68/L.width, S2*.46/L.height, S2*.62/Math.sqrt(L.width*L.height));
+  const w=L.width*s, h=L.height*s; c.drawImage(L,(S2-w)/2,S2*.42-h/2,w,h);
+  c.fillStyle='#F1EAD8'; c.textAlign='center'; c.font='600 34px Oswald, Arial Narrow, sans-serif';
+  let nm=it.name; while(c.measureText(nm).width>S2-90 && nm.length>4) nm=nm.slice(0,-2)+'…';
+  c.fillText(nm.toUpperCase(),S2/2,S2-92);
+  c.font='500 20px Barlow, sans-serif'; c.globalAlpha=.75; c.fillText('PATROCINADOR DE A QUINTA',S2/2,S2-58); c.globalAlpha=1;
+  return cv.toDataURL('image/jpeg',.88);
+}
+function fmtSecs(t){ return Math.floor(t/60)+':'+String(t%60).padStart(2,'0'); }
+async function openPuzzle(it, daily, n){
+  n=n||3; const c=cur();
+  const m=modal(`<div class="pz"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${daily?'Puzle del día':'Puzle'}</h2><button class="sec" style="min-height:40px;padding:8px 14px;flex:none" onclick="closeModal()">Cerrar</button></div>
+    <div class="pzbar"><span>Tiempo <b id="pzt">0:00</b></span><span>Movimientos <b id="pzm">0</b></span><span class="chips"><button class="chip ${n===3?'on':''}" id="pz3">Fácil</button><button class="chip ${n===4?'on':''}" id="pz4">Difícil</button></span></div>
+    <div class="pzboard" id="pzb" style="--n:${n}"><p class="muted center">Preparando…</p></div>
+    <p class="muted small center">Toca una pieza y luego otra para cambiarlas de sitio. Las que están en su sitio se quedan fijas.</p>
+    <button class="sec full" id="pzv">Ver la imagen</button></div>`);
+  m.querySelector('.in').classList.add('wide');
+  const img=await puzzleImage(it); const b=$('#pzb');
+  let order=[...Array(n*n).keys()];
+  do{ for(let i=order.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];} }
+  while(order.filter((v,i)=>v===i).length>Math.floor(n/2));
+  let sel=-1, moves=0, t0=Date.now(), done=false;
+  const tick=setInterval(()=>{ if(!document.body.contains(b)){clearInterval(tick);return} if(!done) $('#pzt').textContent=fmtSecs(Math.floor((Date.now()-t0)/1000)); },500);
+  const draw=()=>{ b.innerHTML=order.map((v,i)=>`<button class="pzp ${v===i?'ok':''} ${sel===i?'sel':''}" data-i="${i}" aria-label="Pieza ${i+1}" style="background-image:url(${img});background-position:${(v%n)/(n-1)*100}% ${Math.floor(v/n)/(n-1)*100}%"></button>`).join(''); };
+  draw();
+  b.onclick=async e=>{
+    const p=e.target.closest('.pzp'); if(!p||done) return; const i=+p.dataset.i; if(order[i]===i) return;
+    if(sel<0){sel=i;draw();return} if(sel===i){sel=-1;draw();return}
+    [order[sel],order[i]]=[order[i],order[sel]]; sel=-1; moves++; $('#pzm').textContent=moves; draw();
+    if(order.every((v,k)=>v===k)){
+      done=true; clearInterval(tick); const secs=Math.floor((Date.now()-t0)/1000); b.classList.add('solved');
+      let pts=null, already=false;
+      if(c && c.status==='activo'){ try{ const r=await rpc('puzzle_done',{p_member:c.id,p_sponsor:it.id,p_daily:!!daily,p_seconds:secs,p_moves:moves}); pts=r&&r.points; already=r&&r.already; if(pts) refreshCards(); }catch(err){} }
+      setTimeout(()=>{ closeModal(); modal(`<div class="center"><h2>¡Conseguido!</h2><p class="muted">${fmtSecs(secs)} · ${moves} movimientos</p>
+        ${pts?`<div class="big">+${pts}</div><p>puntos para tu carnet</p>`:daily&&already?'<p class="muted small">Los puntos del puzle de hoy ya los tienes. Mañana, otro.</p>':''}
+        <div class="pzlogo"><img src="${it.logo}" alt="${esc(it.name)}"></div><p class="small">Este puzle te lo trae <b>${esc(it.name)}</b></p>
+        <button class="full mt" onclick="closeModal();openPuzzle(puzzleItems()[Math.floor(Math.random()*puzzleItems().length)],false,${n})">Otro puzle</button>
+        <button class="sec full mt" onclick="closeModal()">Cerrar</button></div>`); },700);
+    }
+  };
+  $('#pz3').onclick=()=>{closeModal();openPuzzle(it,daily,3)}; $('#pz4').onclick=()=>{closeModal();openPuzzle(it,daily,4)};
+  $('#pzv').onclick=()=>{ const v=modal(`<img src="${img}" alt="${esc(it.name)}" style="width:100%;border-radius:12px;display:block"><button class="full mt" id="pzvc">Volver al puzle</button>`); v.querySelector('#pzvc').onclick=()=>v.remove(); };
 }
 function wheelSVG(segs){
   const n=segs.length, r=140, a=2*Math.PI/n; let s='';
