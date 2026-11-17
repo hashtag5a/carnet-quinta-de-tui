@@ -1173,8 +1173,10 @@ function viewAuto(){
   }
   const data = weekendData(ui.weekend);
   const n = data.matches.length;
-  // Post 4:5: una imagen por cada 3 partidos, sin mezclar días (cabecera = el día).
-  const pages = data.days.flatMap(d => { const out = []; for (let i = 0; i < d.matches.length; i += 3) out.push({fecha: d.matches[0].fecha, matches: d.matches.slice(i, i + 3)}); return out; });
+  // Posts: una imagen por cada 3 partidos (4:5) o por cada 2 (cuadrado 1:1, para carrusel), sin mezclar días.
+  const esPost = ui.formato === "post" || ui.formato === "cuadrado";
+  const porImg = ui.formato === "cuadrado" ? 2 : 3, altoPost = ui.formato === "cuadrado" ? 1080 : 1350;
+  const pages = data.days.flatMap(d => { const out = []; for (let i = 0; i < d.matches.length; i += porImg) out.push({fecha: d.matches[0].fecha, matches: d.matches.slice(i, i + porImg)}); return out; });
   if (!(ui.pagina >= 0 && ui.pagina < pages.length)) ui.pagina = 0;
   const pageHeader = pg => headerFor([pg.fecha]);
   const movil = matchMedia("(pointer: coarse)").matches;
@@ -1183,7 +1185,7 @@ function viewAuto(){
   if (ui.dlKey !== ui.weekend + ui.formato){ ui.dlKey = ui.weekend + ui.formato; ui.dlNext = 0; }
   const hk = ui.weekend;
   const header = ui.header[hk] ?? data.defHeader;
-  const canvas = h("canvas", {id:"poster", width:"1080", height: ui.formato === "post" ? "1350" : "1920", role:"img", "aria-label":"Cartel del calendario " + header});
+  const canvas = h("canvas", {id:"poster", width:"1080", height: esPost ? String(altoPost) : "1920", role:"img", "aria-label":"Cartel del calendario " + header});
   main.append(
     ayuda("auto", "El cartel del fin de semana, listo para descargar.", ["Se crea con el calendario publicado en Futgal: el bot vuelve a Futgal al abrir esta pantalla y se queda con lo último.", "Lleva los escudos de los rivales y va ordenado por categoría dentro de cada día."]),
     estadoFutgal(),
@@ -1200,17 +1202,18 @@ function viewAuto(){
           h("h3", null, "Formato"),
           h("div", {class:"checks"},
             h("label", {class:"check"}, h("input", {type:"radio", name:"fmt", checked: ui.formato === "story", onchange:() => { ui.formato = "story"; render(); }}), "Story 9:16 · todos los partidos"),
-            h("label", {class:"check"}, h("input", {type:"radio", name:"fmt", checked: ui.formato === "post", onchange:() => { ui.formato = "post"; ui.pagina = 0; render(); }}), "Post 4:5 · de 3 en 3 partidos (" + pages.length + (pages.length === 1 ? " imagen)" : " imágenes)"))),
-          ui.formato === "post" && pages.length > 1 ? h("div", null, h("h3", null, "Imagen"),
+            h("label", {class:"check"}, h("input", {type:"radio", name:"fmt", checked: ui.formato === "post", onchange:() => { ui.formato = "post"; ui.pagina = 0; render(); }}), "Post 4:5 · de 3 en 3 partidos")
+            , h("label", {class:"check"}, h("input", {type:"radio", name:"fmt", checked: ui.formato === "cuadrado", onchange:() => { ui.formato = "cuadrado"; ui.pagina = 0; render(); }}), "Carrusel de Instagram 1:1 · de 2 en 2 partidos (cabe sin recortes)")),
+          esPost && pages.length > 1 ? h("div", null, h("h3", null, "Imagen"),
             h("div", {class:"chips"}, pages.map((pg, i) => h("button", {class:"chip-btn", type:"button", "aria-pressed": i === ui.pagina ? "true" : "false", onclick:() => { ui.pagina = i; render(); }}, (i + 1) + " · " + ddmm(pg.fecha))))) : null,
-          ui.formato === "post" ? h("span", {class:"meta"}, movil ? "Cada imagen lleva el día como cabecera. El móvil solo deja guardar una imagen por pulsación: pulsa «Guardar imagen» " + pages.length + " veces y quedan en Descargas y en la galería." : "Cada imagen lleva el día como cabecera.") :
+          esPost ? h("span", {class:"meta"}, movil ? "Cada imagen lleva el día como cabecera. El móvil solo deja guardar una imagen por pulsación: pulsa «Guardar imagen» " + pages.length + " veces y quedan en Descargas y en la galería." : "Cada imagen lleva el día como cabecera.") :
           h("label", {class:"f"}, "Texto de cabecera", h("input", {type:"text", id:"gen-header", value: header, oninput:(ev) => { ui.header[hk] = ev.target.value.toUpperCase(); draw(); }}))),
         h("div", {class:"card"},
           h("h3", null, n + " partido(s) en el cartel"),
           h("div", {class:"scroll"}, h("table", {class:"mini"}, h("tr", null, h("th", null, "Día"), h("th", null, "Hora"), h("th", null, "Categoría"), h("th", null, "Partido")),
             data.matches.map(m => h("tr", null, h("td", null, fechaLarga(m.fecha)), h("td", null, m.time), h("td", null, m.cat), h("td", null, m.home.name + " – " + m.away.name, h("div", {class:"meta"}, m.venue)))))),
-          h("div", {class:"row"}, h("button", {class:"btn", type:"button", id:"dl-btn", onclick:() => download()}, ui.formato === "post" && pages.length > 1 ? "Descargar esta imagen" : "Descargar imagen (PNG)"),
-            ui.formato === "post" && pages.length > 1 ? (movil ? h("button", {class:"btn", type:"button", onclick:() => guardarSiguiente()}, (ui.dlNext || 0) < pages.length ? "Guardar imagen " + ((ui.dlNext || 0) + 1) + " de " + pages.length : "✓ Guardadas las " + pages.length + " · otra vez")
+          h("div", {class:"row"}, h("button", {class:"btn", type:"button", id:"dl-btn", onclick:() => download()}, esPost && pages.length > 1 ? "Descargar esta imagen" : "Descargar imagen (PNG)"),
+            esPost && pages.length > 1 ? (movil ? h("button", {class:"btn", type:"button", onclick:() => guardarSiguiente()}, (ui.dlNext || 0) < pages.length ? "Guardar imagen " + ((ui.dlNext || 0) + 1) + " de " + pages.length : "✓ Guardadas las " + pages.length + " · otra vez")
                    : h("button", {class:"btn", type:"button", onclick:() => downloadAll()}, "Descargar las " + pages.length + " (ZIP)")) : null,
             h("button", {class:"btn ghost", type:"button", onclick:() => go("manual")}, "Hacerlo a mano")),
           null)),
@@ -1222,11 +1225,11 @@ function viewAuto(){
     const cv = document.getElementById("poster"); if (!cv) return;
     const hd = ui.header[hk] ?? data.defHeader;
     Promise.all([fontsReady, cargarEscudos(data), cargarFondo()]).then(() => {
-      if (ui.formato === "post"){ const pg = pages[ui.pagina]; if (pg) drawPost(cv, pageHeader(pg), {matches: pg.matches}); }
+      if (esPost){ const pg = pages[ui.pagina]; if (pg) drawPost(cv, pageHeader(pg), {matches: pg.matches}, altoPost); }
       else drawStory(cv, hd, data);
     });
   }
-  function nombre(i){ return "a-quinta-" + ui.weekend + "-" + (ui.formato === "post" ? "4x5-" + (i + 1) + "-de-" + pages.length : "story") + ".png"; }
+  function nombre(i){ return "a-quinta-" + ui.weekend + "-" + (esPost ? (ui.formato === "cuadrado" ? "1x1-" : "4x5-") + (i + 1) + "-de-" + pages.length : "story") + ".png"; }
   function blobDe(cv){ return new Promise(ok => cv.toBlob(ok, "image/png")); }
   async function guardar(blob, filename){
     if (!blob){ toast("No se pudo crear la imagen."); return false; }
@@ -1248,7 +1251,7 @@ function viewAuto(){
     if (!dl){ toast("Las descargas no están disponibles en esta vista."); return; }
     let i = ui.dlNext || 0; if (i >= pages.length) i = 0;
     await Promise.all([fontsReady, cargarEscudos(data), cargarFondo()]);
-    const cv = document.createElement("canvas"); drawPost(cv, pageHeader(pages[i]), {matches: pages[i].matches});
+    const cv = document.createElement("canvas"); drawPost(cv, pageHeader(pages[i]), {matches: pages[i].matches}, altoPost);
     if (await guardar(await blobDe(cv), nombre(i))){ ui.dlNext = i + 1; ui.pagina = i; toast("Imagen " + (i + 1) + " de " + pages.length + " guardada."); render(); }
   }
   // Ordenador: un ZIP con todas.
@@ -1256,7 +1259,7 @@ function viewAuto(){
     await Promise.all([fontsReady, cargarEscudos(data), cargarFondo()]);
     const cv = document.createElement("canvas"), files = [];
     for (let i = 0; i < pages.length; i++){
-      drawPost(cv, pageHeader(pages[i]), {matches: pages[i].matches});
+      drawPost(cv, pageHeader(pages[i]), {matches: pages[i].matches}, altoPost);
       const b = await blobDe(cv); if (b) files.push(new File([b], nombre(i), {type:"image/png"}));
     }
     if (!files.length){ toast("No se pudieron crear las imágenes."); return; }
@@ -1403,8 +1406,8 @@ function storyRow(c, m, y, rh, k){
   icon(c, CLOCK, X1 - t.w - 10 - 30*k, cy - 15*k, 30*k, "#fff", 2);
   c.fillStyle = "rgba(110,124,144,.55)"; c.fillRect(X0, y + rh - 1, X1 - X0, 1);
 }
-function drawPost(cv, hd, data){
-  const W = 1080, H = 1350; cv.width = W; cv.height = H; const c = cv.getContext("2d");
+function drawPost(cv, hd, data, alto){
+  const W = 1080, H = alto || 1350; cv.width = W; cv.height = H; const c = cv.getContext("2d");
   bgDraw(c, W, H); let y = headerDraw(c, W, 34, hd, 104, 24);
   y += 22; rule(c, 48, y, 984); y += 14;
   const lista = data.matches.slice(0,3);
