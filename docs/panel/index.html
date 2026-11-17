@@ -1,33 +1,32 @@
 <!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex"><link rel="icon" href="../icon-192.png">
 <style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;padding:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<script>try{if(localStorage.getItem("qt_theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}</script><meta name="theme-color" content="#EEE7D6">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="../config.js"></script>
 </head><body>
 <title>A Quinta · Panel de administración</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@600;700&family=Inter:wght@400;500;600;700&family=Oswald:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&family=Permanent+Marker&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Barlow:wght@400;500;600;700&family=Permanent+Marker&display=swap" rel="stylesheet">
 <style>
 /* Layout: una columna de trabajo (máx. 1080px); cabecera negra del club arriba, paneles de herramienta debajo. */
 :root{
-  --bg:#eef0f3; --surface:#ffffff; --surface2:#f5f6f8; --ink:#101215; --muted:#566070; --line:#d5dae1;
-  --steel:#4E5A6B; --steel-soft:#e2e6ec; --gold:#8a6d2f;
+  --bg:#EEE7D6; --surface:#F8F3E8; --surface2:#FFFCF5; --ink:#161412; --muted:#5C564B; --line:#D3C8B0;
+  --steel:#5A5040; --steel-soft:#E8DFCB; --gold:#8a6d2f;
   --ok:#1f6b3b; --ok-bg:#e1f0e6; --warn:#8d5300; --warn-bg:#fbeed6; --bad:#a3221a; --bad-bg:#f8e0de;
-  --slot:#d9e3ef; --slot-line:#a9bbd1; --rival:#f2d6c2; --rival-line:#cf9b78; --us:#101215; --us-ink:#ffffff;
+  --slot:#E6DCC4; --slot-line:#B9AA88; --rival:#f2d6c2; --rival-line:#cf9b78; --us:#161412; --us-ink:#F1EAD8;
+  --f1:#FCF8EF; --f2:#E8DEC6; --edge:#C4B696; --sh:rgba(70,50,20,.22); --hi:rgba(255,255,255,.9);
+  --p1:#2C2926; --p2:#131210; --pink:#F1EAD8; --pedge:#000; --phi:rgba(255,255,255,.14); --well:#E3D9C2;
   --display:"Oswald","Arial Narrow",Arial,sans-serif; --body:"Barlow","Segoe UI",system-ui,sans-serif; --marker:"Permanent Marker","Comic Sans MS",cursive;
-  --r:10px;
+  --r:14px; color-scheme:light;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0b0c0e; --surface:#15171b; --surface2:#1b1e23; --ink:#f0f2f5; --muted:#9ba5b3; --line:#2a2f37;
-  --steel:#a3b3c8; --steel-soft:#232a33; --gold:#C9B37E;
-  --ok:#74d39a; --ok-bg:#15301f; --warn:#f1b65e; --warn-bg:#33270f; --bad:#f28c82; --bad-bg:#3a1714;
-  --slot:#1d2a39; --slot-line:#3d5675; --rival:#3d2717; --rival-line:#8f5a36; --us:#f0f2f5; --us-ink:#0b0c0e;
-  color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0b0c0e; --surface:#15171b; --surface2:#1b1e23; --ink:#f0f2f5; --muted:#9ba5b3; --line:#2a2f37;
-  --steel:#a3b3c8; --steel-soft:#232a33; --gold:#C9B37E;
+  --bg:#0E0D0C; --surface:#181715; --surface2:#121110; --ink:#EEE6D3; --muted:#A59E90; --line:#2E2B27;
+  --steel:#C9BFA8; --steel-soft:#24221F; --gold:#C9B37E;
   --ok:#74d39a; --ok-bg:#15301f; --warn:#f1b65e; --warn-bg:#33270f; --bad:#f28c82; --bad-bg:#3a1714;
-  --slot:#1d2a39; --slot-line:#3d5675; --rival:#3d2717; --rival-line:#8f5a36; --us:#f0f2f5; --us-ink:#0b0c0e;
+  --slot:#1d2a39; --slot-line:#3d5675; --rival:#3d2717; --rival-line:#8f5a36; --us:#EEE6D3; --us-ink:#0E0D0C;
+  --f1:#2B2926; --f2:#1A1917; --edge:#030303; --sh:rgba(0,0,0,.6); --hi:rgba(255,255,255,.08);
+  --p1:#F3ECDB; --p2:#D8CEB6; --pink:#141210; --pedge:#8F8570; --phi:rgba(255,255,255,.7); --well:#121110;
   color-scheme:dark}
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.45}
@@ -163,33 +162,63 @@ details.sub summary{cursor:pointer;font-weight:600;font-size:14px}
 @media (prefers-reduced-motion:reduce){.bigbtn{transition:none}}
 @media (max-width:600px){.fields[style*="grid-template-columns"]{grid-template-columns:minmax(0,1fr)!important}}
 
-/* Estilo del carnet de socio: negro, crema, Zilla Slab + Inter */
-:root:root:root{--bg:#0B0B0B;--surface:#141414;--surface2:#1b1b1b;--ink:#F4F1EA;--muted:#A8A8A8;--line:#262626;--steel:#C8C8C8;--steel-soft:#232323;--gold:#E6DCC6;
- --ok:#8fd4a6;--ok-bg:#15281c;--warn:#efc177;--warn-bg:#2e2410;--bad:#f2968c;--bad-bg:#371614;
- --slot:#1d2530;--slot-line:#4a5a70;--rival:#3a2a1d;--rival-line:#8f6a46;--us:#F4F1EA;--us-ink:#0B0B0B;
- --display:"Zilla Slab",Georgia,serif;--body:"Inter",system-ui,sans-serif;color-scheme:dark}
+/* Estilo A Quinta: crema y negro según el modo; botones con relieve; Oswald + Barlow (igual que el carnet) */
 body{background:var(--bg)}
-.club{background:#0B0B0B;background-image:none;border-bottom:1px solid #262626}
-.club-name{font-family:var(--display);font-weight:700;font-size:24px;transform:none;display:flex;align-items:center;gap:10px;letter-spacing:.5px}
-.club-name img{width:40px;height:40px}
-.club-sub{color:#A8A8A8;letter-spacing:.25em}
-.back{border-color:#3a3a3a;color:#F4F1EA;font-family:var(--body);font-weight:600;font-size:13px;letter-spacing:.04em}
-.hero .crest{width:150px;height:150px;margin-bottom:10px}
-.hero h1{font-family:var(--display);font-weight:700;transform:none;font-size:clamp(46px,10vw,84px);letter-spacing:1px}
-.hero .eyebrow,.hero .motto{font-family:var(--body);color:#A8A8A8}
-.hero .motto i{background:#555}
-.bigbtns{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
-.bigbtn{background:#141414;color:#F4F1EA;border:1px solid #262626;border-radius:18px;box-shadow:none}
-.bigbtn:hover{transform:translateY(-2px);box-shadow:none;border-color:#F4F1EA}
-.bigbtn b{font-family:var(--display);text-transform:none;font-size:24px}
-.bigbtn span{color:#A8A8A8}
-.bigbtn .ico{width:30px;height:30px;color:#F4F1EA}
-.btn{background:#F4F1EA;color:#0B0B0B;border-color:#F4F1EA;font-family:var(--body);font-weight:600;border-radius:999px}
-.btn.ghost{background:transparent;color:var(--ink);border-color:#3a3a3a}
-.btn.danger{background:transparent}
+.club{background:var(--bg);background-image:none;color:var(--ink);border-bottom:1px solid var(--line)}
+.club-name{font-family:var(--display);font-weight:600;font-size:22px;transform:none;display:flex;align-items:center;gap:10px;letter-spacing:.08em}
+.club-name img{width:40px;height:40px;border-radius:50%;box-shadow:0 2px 6px var(--sh)}
+.club-sub{color:var(--muted);letter-spacing:.2em}
+.back,.themebtn{background:linear-gradient(180deg,var(--f1),var(--f2));border:1px solid var(--line);color:var(--ink);font-family:var(--body);font-weight:600;font-size:13px;letter-spacing:.04em;box-shadow:inset 0 1px 0 var(--hi),0 2px 0 var(--edge),0 6px 12px -4px var(--sh)}
+.back:hover{border-color:var(--ink)}
+.back:active,.themebtn:active{transform:translateY(2px)}
+.themebtn{width:40px;height:40px;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:none}
+.themebtn svg{width:18px;height:18px}
+.club-bar{flex-wrap:nowrap}
+.club-sub{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.club-bar .back{margin-left:auto;flex:none}
+@media (max-width:600px){.club-name{font-size:0;gap:0}.club-sub{letter-spacing:.12em;font-size:12px}}
+/* Inicio */
+.home{max-width:560px;margin:0 auto;padding:18px max(18px,env(safe-area-inset-left,0px)) 40px}
+.home-top{display:flex;align-items:center;gap:12px}
+.home-top img{width:44px;height:44px;border-radius:50%;box-shadow:0 2px 6px var(--sh)}
+.home-top .t{flex:1;display:flex;flex-direction:column;line-height:1.1}
+.home-top .t b{font-family:var(--display);font-weight:600;font-size:19px;letter-spacing:.08em}
+.home-top .t span{font-size:13px;color:var(--muted)}
+.hola{margin:34px 4px 24px}
+.hola h1{margin:0;font-family:var(--display);font-weight:600;font-size:36px;line-height:1.05}
+.hola p{margin:6px 0 0;color:var(--muted);font-size:17px}
+.bigbtns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;width:100%;margin:0}
+.bigbtn{position:relative;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;gap:14px;min-height:168px;text-align:left;text-decoration:none;color:var(--ink);background:linear-gradient(180deg,var(--f1),var(--f2));border:1px solid var(--line);border-radius:22px;padding:18px;cursor:pointer;box-shadow:inset 0 1px 0 var(--hi),0 4px 0 var(--edge),0 14px 22px -8px var(--sh);transition:transform .08s ease,box-shadow .08s ease}
+.bigbtn:hover{transform:translateY(-1px);border-color:var(--edge)}
+.bigbtn:active{transform:translateY(4px);box-shadow:inset 0 1px 0 var(--hi),0 0 0 var(--edge),0 4px 10px -6px var(--sh)}
+.bigbtn:focus-visible{outline:3px solid var(--ink);outline-offset:3px}
+.bigbtn b{font-family:var(--display);font-size:20px;font-weight:500;text-transform:none;line-height:1.1;letter-spacing:0}
+.bigbtn .ico{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--well);box-shadow:inset 0 2px 4px var(--sh);color:var(--ink)}
+.bigbtn .ico svg{width:26px;height:26px}
+.bigbtn .pill{position:absolute;top:16px;right:14px}
+.home-foot{display:flex;justify-content:center;gap:8px;margin-top:30px;flex-wrap:wrap}
+.linkbtn{background:none;border:0;color:var(--muted);font-size:15px;padding:12px 14px;min-height:44px;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.linkbtn:hover{color:var(--ink)}
+.linkbtn svg{width:16px;height:16px}
+.home .status{margin-top:10px;text-align:center;color:var(--muted);font-size:14px}
+.hero .crest{width:150px;height:150px;margin-bottom:10px;border-radius:50%;box-shadow:0 8px 20px -8px var(--sh)}
+.hero h1{font-family:var(--display);font-weight:600;transform:none;font-size:clamp(46px,10vw,84px);letter-spacing:1px}
+.hero .eyebrow,.hero .motto{font-family:var(--body);color:var(--muted)}
+.hero .motto i{background:var(--line)}
+.btn{background:linear-gradient(180deg,var(--p1),var(--p2));color:var(--pink);border:1px solid var(--pedge);font-family:var(--body);font-weight:600;border-radius:12px;box-shadow:inset 0 1px 0 var(--phi),0 2px 0 var(--pedge),0 8px 14px -8px var(--sh);transition:transform .08s ease}
+.btn:active{transform:translateY(2px)}
+.btn.ghost{background:linear-gradient(180deg,var(--f1),var(--f2));color:var(--ink);border-color:var(--line);box-shadow:inset 0 1px 0 var(--hi),0 2px 0 var(--edge),0 8px 14px -8px var(--sh)}
+.btn.danger{background:linear-gradient(180deg,var(--f1),var(--f2));color:var(--bad);border-color:var(--bad);box-shadow:inset 0 1px 0 var(--hi),0 2px 0 var(--edge)}
 .tab{font-family:var(--body);font-weight:600;font-size:14px}
 .card,.daybar,.footbar,.tl{border-radius:18px}
-.cnt{position:relative;width:100%;max-width:560px;aspect-ratio:856/540;border-radius:24px;background:#0B0B0B;border:1px solid #262626;overflow:hidden;color:#F4F1EA}
+.eqrow{box-shadow:inset 0 1px 0 var(--hi),0 3px 0 var(--edge),0 10px 16px -10px var(--sh)}
+.opt{background:linear-gradient(180deg,var(--f1),var(--f2));box-shadow:inset 0 1px 0 var(--hi),0 4px 0 var(--edge),0 12px 20px -10px var(--sh);border-radius:18px}
+.opt:active{transform:translateY(3px)}
+.chip-btn{background:linear-gradient(180deg,var(--f1),var(--f2));box-shadow:inset 0 1px 0 var(--hi),0 2px 0 var(--edge)}
+.chip-btn[aria-pressed="true"]{background:linear-gradient(180deg,var(--p1),var(--p2));color:var(--pink);border-color:var(--pedge);box-shadow:inset 0 1px 0 var(--phi),0 2px 0 var(--pedge)}
+input[type=text],input[type=url],input[type=date],input[type=time],input[type=number],select{box-shadow:inset 0 1px 3px var(--sh)}
+@media (max-width:380px){.bigbtns{gap:12px}.bigbtn{min-height:150px;padding:14px}.bigbtn b{font-size:18px}}
+.cnt{position:relative;width:100%;max-width:560px;aspect-ratio:856/540;border-radius:24px;background:#0B0B0B;border:1px solid #34312C;overflow:hidden;color:#F4F1EA}
 .cnt-mark{position:absolute;width:75%;right:-27%;top:-9%;opacity:.18}
 .cnt-in{position:absolute;inset:0;padding:6% 6%;display:flex;flex-direction:column;justify-content:space-between}
 .cnt-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
@@ -313,7 +342,7 @@ async function loadPerms(){ const {data} = await SB.from("panel_permisos").selec
 const MODS = [["programar","Programar calendario"],["generar","Generar calendario"],["correo","Correo Futgal"],["carnet","Carnet de socio"]];
 function viewLogin(){
   const sent = ui.loginSent;
-  return [h("section", {class:"club"}, h("div", {class:"club-in hero"},
+  return [h("div", {style:"display:flex;justify-content:flex-end;padding:14px 14px 0"}, themeBtn()), h("section", {class:"club", style:"border-bottom:0"}, h("div", {class:"club-in hero"},
     h("img", {src:ESC, alt:"Escudo de A Quinta", class:"crest"}),
     h("div", {class:"eyebrow"}, "PANEL DE ADMINISTRACIÓN"),
     h("h1", null, "A QUINTA"),
@@ -462,29 +491,54 @@ function clubBar(title){
   return h("header", {class:"club"}, h("div", {class:"club-in"}, h("div", {class:"club-bar"},
     h("div", {class:"club-name"}, h("img", {src:ESC, alt:""}), "A QUINTA"),
     h("div", {class:"club-sub"}, title),
-    h("button", {class:"back", type:"button", onclick:() => go("home")}, "← Inicio"))));
+    h("button", {class:"back", type:"button", onclick:() => go("home")}, "← Inicio"),
+    themeBtn())));
 }
 function go(view, extra){ ui.view = view; Object.assign(ui, extra || {}); ui.confirmDel = null; render(); window.scrollTo(0,0); }
 
+const ICO = {
+  programar:'M3.5 5h17v15h-17zM3.5 10h17M8 3v4M16 3v4M8 14h3M13 14h3M8 17h3',
+  generar:'M5 3.5h14v17H5zM8.5 8h7M8.5 11.5h7M8.5 15h4',
+  correo:'M3 5.5h18v13H3zM3.5 7l8.5 6 8.5-6',
+  carnet:'M4.5 5.5h15a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2zM8.5 8.8a2.2 2.2 0 1 1 0 4.4 2.2 2.2 0 0 1 0-4.4zM5.5 15.5c.6-1.5 1.7-2.2 3-2.2s2.4.7 3 2.2M14 10h4.5M14 13.5h3',
+  candado:'M5 10.5h14v10H5zM8 10.5V7.5a4 4 0 0 1 8 0v3',
+  salir:'M14 4h4.5A1.5 1.5 0 0 1 20 5.5v13a1.5 1.5 0 0 1-1.5 1.5H14M10 16l-4-4 4-4M6 12h10',
+  luna:'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z',
+  sol:'M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8zM12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4'
+};
+function ico(k, w){ const sp = document.createElement("span"); sp.style.display = "contents"; sp.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="' + (w || 1.75) + '" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="' + ICO[k] + '"/></svg>'; return sp; }
+function themeBtn(){
+  const dark = document.documentElement.dataset.theme === "dark";
+  return h("button", {class:"themebtn", type:"button", "aria-label":"Cambiar entre modo claro y oscuro", onclick:() => {
+    if (dark) delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = "dark";
+    try { localStorage.setItem("qt_theme", dark ? "light" : "dark"); } catch(e) {}
+    const m = document.querySelector("meta[name=theme-color]"); if (m) m.content = dark ? "#EEE7D6" : "#0E0D0C";
+    render(); }}, ico(dark ? "sol" : "luna", 1.9));
+}
 function viewHome(){
   const pr = Object.values(S.partidos);
   const conf = pr.filter(p => p.estado === "confirmado" && p.fecha >= today()).length;
   const prop = pr.filter(p => p.estado !== "confirmado" && p.fecha >= today()).length;
   let status = dbMode === "cargando" ? "Cargando datos del club…" : (conf || prop) ? conf + " partidos confirmados y " + prop + " por confirmar en las próximas fechas." : "Aún no hay partidos programados.";
-  return [h("section", {class:"club"}, h("div", {class:"club-in hero"},
-    h("img", {src:ESC, alt:"Escudo de A Quinta", class:"crest"}),
-    h("div", {class:"eyebrow"}, "PANEL DE ADMINISTRACIÓN"),
-    h("h1", null, "A QUINTA"),
-    h("div", {class:"motto"}, "COMPETICIÓN", h("i"), "FORMACIÓN", h("i"), "FUTURO"),
-    h("div", {class:"bigbtns"},
-      can("programar") ? h("button", {class:"bigbtn", type:"button", onclick:() => go("programar")}, h("b", null, "Programar calendario"), h("span", null, "Equipos, conflictos, normas, horas de pabellón y la jornada sin coincidencias.")) : null,
-      can("generar") ? h("button", {class:"bigbtn", type:"button", onclick:() => { go("generar"); traerFutgal(); }}, h("b", null, "Generar calendario"), h("span", null, "El cartel del fin de semana, automático desde lo confirmado o manual.")) : null,
-      can("correo") ? h("button", {class:"bigbtn", type:"button", onclick:() => go("mails")}, h("b", null, "Correo Futgal", (() => { const n = Object.entries(S.mails).filter(([id,m]) => !String(id).startsWith("_") && m.estado !== "gestionado").length; return n ? h("span", {class:"pill bad", style:"margin-left:8px;vertical-align:middle;font-family:var(--body)"}, n + (n === 1 ? " pendiente" : " pendientes")) : null; })()), h("span", null, "Los mensajes nuevos del buzón de Futgal, con titular y resumen para decidir qué hacer.")) : null,
-      can("carnet") ? h("a", {class:"bigbtn", href:"../#gestion", style:"text-decoration:none"}, h("b", null, "Carnet de socio"), h("span", null, "Socios y familias, cuotas, puntos y premios, comercios, porra y lotería.")) : null,
-      ME.super ? h("button", {class:"bigbtn", type:"button", onclick:() => go("permisos")}, h("b", null, "Permisos"), h("span", null, "Quién entra al panel y qué parte ve cada persona.")) : null),
+  const nombre = String(ME.nombre || "").trim().split(/\s+/)[0];
+  const pend = Object.entries(S.mails).filter(([id,m]) => !String(id).startsWith("_") && m.estado !== "gestionado").length;
+  const big = (k, label, attrs, extra) => h(attrs.href ? "a" : "button", Object.assign({class:"bigbtn"}, attrs.href ? {} : {type:"button"}, attrs), h("span", {class:"ico"}, ico(k)), h("b", null, label), extra || null);
+  return [h("main", {class:"home"},
+    h("div", {class:"home-top"},
+      h("img", {src:ESC, alt:"Escudo de A Quinta"}),
+      h("div", {class:"t"}, h("b", null, "A QUINTA"), h("span", null, "Administración")),
+      themeBtn()),
+    h("div", {class:"hola"}, h("h1", null, nombre ? "Hola, " + nombre : "Hola"), h("p", null, "¿Qué toca hoy?")),
+    h("nav", {class:"bigbtns", "aria-label":"Módulos"},
+      can("programar") ? big("programar", "Programar calendario", {onclick:() => go("programar")}) : null,
+      can("generar") ? big("generar", "Generar calendario", {onclick:() => { go("generar"); traerFutgal(); }}) : null,
+      can("correo") ? big("correo", "Correo Futgal", {onclick:() => go("mails")}, pend ? h("span", {class:"pill bad"}, String(pend)) : null) : null,
+      can("carnet") ? big("carnet", "Carnet de socio", {href:"../#gestion"}) : null),
     (dbMode !== "ok" || (ME.modulos || []).length) ? null : h("div", {class:"status"}, "Tu email (" + (ME.email || "") + ") todavía no tiene acceso. Pídeselo al administrador del club."),
-    h("div", {class:"row", style:"justify-content:center;margin-top:18px"}, h("button", {class:"back", style:"margin:0", type:"button", onclick: async () => { await SB.auth.signOut(); location.reload(); }}, "Salir")),
-    (can("programar") || can("generar")) ? h("div", {class:"status"}, status) : null)),
+    (can("programar") || can("generar")) ? h("div", {class:"status", style:"margin-top:22px"}, status) : null,
+    h("div", {class:"home-foot"},
+      ME.super ? h("button", {class:"linkbtn", type:"button", onclick:() => go("permisos")}, ico("candado", 1.8), "Permisos") : null,
+      h("button", {class:"linkbtn", type:"button", onclick: async () => { await SB.auth.signOut(); location.reload(); }}, ico("salir", 1.8), "Salir"))),
     dbNotice()];
 }
 function dbNotice(){
