@@ -142,10 +142,10 @@ video{width:100%;border-radius:12px;background:#000}
 .pzp.ok{box-shadow:none;cursor:default}
 .pzboard.solved{gap:0}.pzboard.solved .pzp{border-radius:0}
 .pzday{display:flex;gap:14px;align-items:center}
-.pzday img,.pzlogo{background:linear-gradient(135deg,#4A3520,#121110 50%,#22313A);border-radius:14px}
-.pzday img{width:76px;height:76px;object-fit:contain;padding:10px;flex:none}
-.pzlogo{padding:18px;margin:14px auto 8px;max-width:240px}
-.pzlogo img{max-width:100%;max-height:120px;display:block;margin:0 auto}
+.pzday img,.pzlogo{background:#fff;border-radius:14px;border:1px solid var(--line)}
+.pzday img{width:76px;height:76px;object-fit:contain;padding:4px;flex:none}
+.pzlogo{padding:0;overflow:hidden;margin:14px auto 8px;max-width:240px}
+.pzlogo img{width:100%;max-height:160px;object-fit:contain;display:block}
 table{width:100%;border-collapse:collapse;font-size:.88rem}
 td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:left}
 </style>
@@ -531,14 +531,14 @@ async function viewJuegos(el, c){
   $('#rank').innerHTML = `<h3>Ranking de la porra</h3>${rk.length?`<table>${rk.map((r,i)=>`<tr><td>${i+1}</td><td>${esc(r.name)}</td><td class="muted small">${r.exactos} exactos</td><td><b>${r.pts}</b></td></tr>`).join('')}</table>`:'<p class="muted small">Todavía no hay puntos esta temporada.</p>'}`;
 }
 /* ---------- puzle de patrocinadores (más adelante, también comercios colaboradores) ----------
-   Nivel 1 sale más a menudo como puzle del día. Para añadir uno: su PNG blanco con fondo transparente en patrocinadores/ y una línea aquí. */
+   Nivel 1 sale más a menudo como puzle del día. Para añadir uno: su logo en color en patrocinadores/color/ y una línea aquí. */
 const PATROCINADORES = [
   ['persa','Concepto by Persa Cociñas',1],['seta','S.E.T.A.',1],['mensatui','MensaTui Logística',1],
   ['casapote','Restaurante Casa Pote',2],['marangel','Marangel',2],['alipa','Estudio Alipa Cociñas',2],['inglesinos','Academia Inglesiños',2],
   ['cluber','Cluber',2],['a3','a3 arquitectura',2],['blancoquintas','Blanco Quintas',2],['maderas','Maderas Porriño',2],
-  ['cal','CAL Construcciones y Servicios',3],['dizgamallo','Gestoría Diz Gamallo',3],['life','LIFe · Laboratorio de Informática Forense Europeo',3],
-  ['nobel','Espacio Lector Nobel',3],['ponyexpress','Pony Express',3],['concellotui','Concello de Tui',3],['deputacion','Deputación de Pontevedra',3],['xunta','Xunta de Galicia',3]
-].map(([id,name,tier])=>({id,name,tier,logo:'patrocinadores/'+id+'.png'}));
+  ['cal','CAL Construcciones y Servicios',3],['dizgamallo','Gestoría Diz Gamallo',3],['life','LIFe',3],
+  ['nobel','Espacio Lector Nobel',3],['ponyexpress','Pony Express',3],['concellotui','Concello de Tui',3,1],['deputacion','Deputación de Pontevedra',3,1],['xunta','Xunta de Galicia',3,1]
+].map(([id,name,tier,inst])=>({id,name,tier,inst:!!inst,logo:'patrocinadores/color/'+id+(id==='nobel'?'.png':'.jpg')}));
 function puzzleItems(){ return PATROCINADORES; }
 function madridDayNo(){ const d=new Date().toLocaleDateString('en-CA',{timeZone:'Europe/Madrid'}); return Math.floor(Date.parse(d+'T00:00:00Z')/864e5); }
 function puzzleOfDay(){
@@ -562,12 +562,15 @@ async function puzzleImage(it){
   const rg=c.createRadialGradient(S2/2,S2*.42,20,S2/2,S2*.42,S2*.42); rg.addColorStop(0,'rgba(255,240,210,.16)'); rg.addColorStop(1,'rgba(255,240,210,0)');
   c.fillStyle=rg; c.fillRect(0,0,S2,S2);
   c.strokeStyle='rgba(241,234,216,.55)'; c.lineWidth=4; c.strokeRect(18,18,S2-36,S2-36);
-  const L=await loadImg(it.logo); const s=Math.min(S2*.68/L.width, S2*.46/L.height, S2*.62/Math.sqrt(L.width*L.height));
-  const w=L.width*s, h=L.height*s; c.drawImage(L,(S2-w)/2,S2*.42-h/2,w,h);
+  const L=await loadImg(it.logo); const s=Math.min(S2*.74/L.width, S2*.54/L.height, S2*.72/Math.sqrt(L.width*L.height));
+  const w=L.width*s, h=L.height*s, x=(S2-w)/2, y=S2*.42-h/2, r=Math.min(26,h/5);
+  const rr=()=>{c.beginPath(); c.moveTo(x+r,y); c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath();};
+  c.save(); c.shadowColor='rgba(0,0,0,.55)'; c.shadowBlur=30; c.shadowOffsetY=12; rr(); c.fillStyle='#fff'; c.fill(); c.restore();
+  c.save(); rr(); c.clip(); c.drawImage(L,x,y,w,h); c.restore();
   c.fillStyle='#F1EAD8'; c.textAlign='center'; c.font='600 34px Oswald, Arial Narrow, sans-serif';
   let nm=it.name; while(c.measureText(nm).width>S2-90 && nm.length>4) nm=nm.slice(0,-2)+'…';
   c.fillText(nm.toUpperCase(),S2/2,S2-92);
-  c.font='500 20px Barlow, sans-serif'; c.globalAlpha=.75; c.fillText('PATROCINADOR DE A QUINTA',S2/2,S2-58); c.globalAlpha=1;
+  c.font='500 20px Barlow, sans-serif'; c.globalAlpha=.75; c.fillText(it.inst?'COLABORA CON A QUINTA':'PATROCINADOR DE A QUINTA',S2/2,S2-58); c.globalAlpha=1;
   return cv.toDataURL('image/jpeg',.88);
 }
 function fmtSecs(t){ return Math.floor(t/60)+':'+String(t%60).padStart(2,'0'); }
