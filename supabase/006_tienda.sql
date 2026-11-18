@@ -1,0 +1,3 @@
+-- Tienda (aplicada en Supabase como migración «tienda»): prizes.cost_eur/price_eur, redemptions.points_used/euros/paid,
+-- trigger trg_prize_price (precio = coste + settings.tienda.margen, 15 %, redondeo a 10 céntimos; 100 puntos por euro),
+-- shop_order, admin_order_paid, admin_order_cancel.
