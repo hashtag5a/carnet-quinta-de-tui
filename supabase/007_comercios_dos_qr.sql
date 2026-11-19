@@ -1,0 +1,2 @@
+-- Dos QR por comercio (migración «comercios_dos_qr»): merchants.sale_code, merchant_scans.kind (entrada/venta),
+-- puntos comercio_entrada 10 y comercio_venta 25, scan_code con #c= y #v=, admin_new_sale_code.

@@ -248,7 +248,7 @@ async function boot(){
   if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
   const hash = location.hash;
   if(hash.startsWith('#comercio')) return renderMerchantSignup();
-  const m = hash.match(/[#&]([cp])=([0-9a-f]+)/i);
+  const m = hash.match(/[#&]([cpv])=([0-9a-f]+)/i);
   if(m) ssSet('qt_code', m[1]+':'+m[2]);
   const st = hash.match(/^#(gol|calendario|aficionado|ruleta|navidad|loteria)$/); if(st) ssSet('qt_story', st[1]);
   if(hash==='#gestion') ssSet('qt_tab','admin');
@@ -495,7 +495,7 @@ function openScanner(){
     const tick=()=>{ if(!scanStream) return;
       if(v.readyState===v.HAVE_ENOUGH_DATA){cv.width=v.videoWidth;cv.height=v.videoHeight;ctx.drawImage(v,0,0);
         const r=jsQR(ctx.getImageData(0,0,cv.width,cv.height).data,cv.width,cv.height);
-        if(r&&r.data){const m=r.data.match(/[#?&]([cp])=([0-9a-f]+)/i); if(m){closeModal();return doScan(m[1]+':'+m[2])}}}
+        if(r&&r.data){const m=r.data.match(/[#?&]([cpv])=([0-9a-f]+)/i); if(m){closeModal();return doScan(m[1]+':'+m[2])}}}
       scanRAF=requestAnimationFrame(tick)};
     tick();
   }).catch(()=>toast('No se pudo abrir la cámara. Escribe el código.',true));
@@ -979,7 +979,7 @@ function wheelSVG(segs){
 async function viewComercios(el){
   const {data,error}=await sb.from('merchants').select('id,name,category,discount,address,phone,web,logo_url').order('name');
   if(error) throw error;
-  el.innerHTML = `<h2>Comercios con descuento</h2><p class="muted small">Enseña tu carnet al pagar y escanea el QR del mostrador: sumas ${(S.settings.puntos||{}).comercio||15} puntos (una vez al día por comercio).</p>
+  el.innerHTML = `<h2>Comercios con descuento</h2><p class="muted small">Escanea el QR de la entrada al visitar un comercio: ${(S.settings.puntos||{}).comercio_entrada||10} puntos. Al pagar, pide el QR del mostrador: ${(S.settings.puntos||{}).comercio_venta||25} puntos más. Una vez al día de cada.</p>
    <button class="full" onclick="openScanner()">📷 Escanear QR del comercio</button>
    <div class="box mt">${data.length?`<ul class="list">${data.map(m=>`<li>${m.logo_url?`<img class="logo" src="${esc(m.logo_url)}" alt="">`:`<div class="logo">${esc(m.name[0]||'')}</div>`}
      <div class="grow"><b>${esc(m.name)}</b>${m.category?` <span class="muted small">· ${esc(m.category)}</span>`:''}<div>${esc(m.discount)}</div>
@@ -1093,14 +1093,24 @@ function saveRes(id){guard(async()=>{const f=$('#gf'+id).value,a=$('#ga'+id).val
 
 async function aComercios(b){
   const list=await rpc('admin_merchants');
-  b.innerHTML=`<div class="box"><p class="small">Los comercios se apuntan solos desde <b>${esc(APP_URL)}#comercio</b>. Aquí los apruebas y les imprimes su QR de mostrador.</p></div>
+  b.innerHTML=`<div class="box"><p class="small">Los comercios se apuntan solos desde <b>${esc(APP_URL)}#comercio</b>. Aquí los apruebas y les imprimes sus dos QR:</p>
+   <ul class="list small"><li><div class="grow"><b>QR de entrada</b> (${(S.settings.puntos||{}).comercio_entrada||10} puntos): a la vista, en el escaparate o la puerta. Sirve también para juegos y búsquedas del tesoro.</div></li>
+   <li><div class="grow"><b>QR de venta</b> (${(S.settings.puntos||{}).comercio_venta||25} puntos): detrás del mostrador; el comercio lo enseña solo al cobrar. Si se filtra, pulsa «Nuevo QR de venta» y el viejo deja de valer.</div></li></ul>
+   ${list.some(m=>m.approved&&m.active)?'<button class="mt" onclick="printAllMerchQR()">Imprimir los QR de todos los comercios</button>':''}</div>
    <div class="box"><ul class="list">${list.map(m=>`<li><div class="grow"><b>${esc(m.name)}</b> ${m.approved?(m.active?'<span class="tag activo">ACTIVO</span>':'<span class="tag baja">PAUSADO</span>'):'<span class="tag pendiente">POR APROBAR</span>'}
      <div class="small">${esc(m.discount)}</div><div class="muted small">${esc(m.contact_name||'')} ${esc(m.contact_email||'')} ${esc(m.phone||'')}</div>
-     <div class="muted small">Visitas de socios (30 días): ${m.visitas_30d}</div>
+     <div class="muted small">Últimos 30 días: ${m.visitas_30d} visitas y ${m.ventas_30d||0} compras de socios</div>
      <label class="small">Logo (enlace a imagen)</label><div class="row"><input id="lg${m.id}" value="${esc(m.logo_url||'')}" placeholder="https://…"><button class="sec" style="flex:0" onclick="saveLogo(${m.id})">OK</button></div></div>
-     <div style="display:flex;flex-direction:column;gap:4px;flex:none">${m.approved?`<button onclick="printQR('${esc(APP_URL)}#c=${m.scan_code}','${esc(m.name).replace(/'/g,'')}','Socio: escanea al pagar y suma puntos')">QR</button><button class="sec" onclick="merchSet(${m.id},{active:${!m.active}})">${m.active?'Pausar':'Reactivar'}</button>`:`<button onclick="merchSet(${m.id},{approved:true})">Aprobar</button><button class="sec" onclick="merchDel(${m.id})">Rechazar</button>`}</div></li>`).join('')||'<li class="muted">Sin comercios</li>'}</ul></div>
+     <div style="display:flex;flex-direction:column;gap:4px;flex:none">${m.approved?`<button onclick="printMerchQR(${m.id},'c')">QR entrada</button><button onclick="printMerchQR(${m.id},'v')">QR venta</button><button class="sec" onclick="newSaleCode(${m.id})">Nuevo QR de venta</button><button class="sec" onclick="merchSet(${m.id},{active:${!m.active}})">${m.active?'Pausar':'Reactivar'}</button>`:`<button onclick="merchSet(${m.id},{approved:true})">Aprobar</button><button class="sec" onclick="merchDel(${m.id})">Rechazar</button>`}</div></li>`).join('')||'<li class="muted">Sin comercios</li>'}</ul></div>
    <div class="box"><h3>Añadir comercio a mano</h3><p class="muted small">Para los 9 que ya tenéis: rellena el formulario de alta y apruébalo aquí.</p><a href="#comercio" onclick="setTimeout(boot)"><button class="sec">Abrir formulario</button></a></div>`;
 }
+function merchQRPage(m,k){const P=S.settings.puntos||{};
+  return k==='v'?{title:m.name,sub:'Para el mostrador: enséñalo solo al cobrar',url:`${APP_URL}#v=${m.sale_code}`,foot:`Socio: escanéalo al pagar y suma ${P.comercio_venta||25} puntos`}
+               :{title:m.name,sub:'Comercio amigo de A Quinta',url:`${APP_URL}#c=${m.scan_code}`,foot:`Socio: escanéalo al entrar y suma ${P.comercio_entrada||10} puntos`}}
+async function printMerchQR(id,k){const list=await rpc('admin_merchants');const m=list.find(x=>x.id===id); if(m) printPages([merchQRPage(m,k)])}
+async function printAllMerchQR(){const list=(await rpc('admin_merchants')).filter(m=>m.approved&&m.active); printPages(list.flatMap(m=>[merchQRPage(m,'c'),merchQRPage(m,'v')]))}
+function newSaleCode(id){modal(`<h3>¿Nuevo QR de venta?</h3><p>El QR de venta impreso de este comercio dejará de valer. Tendrás que imprimir y darle el nuevo.</p><div class="row"><button class="sec" onclick="closeModal()">Cancelar</button><button id="nsc">Cambiar</button></div>`);
+  $('#nsc').onclick=()=>guard(async()=>{await rpc('admin_new_sale_code',{p_id:id});closeModal();toast('QR de venta cambiado');printMerchQR(id,'v');aComercios($('#adm'))})}
 function merchSet(id,patch){guard(async()=>{const {error}=await sb.from('merchants').update(patch).eq('id',id);if(error)throw error;aComercios($('#adm'))})}
 function merchDel(id){guard(async()=>{const {error}=await sb.from('merchants').delete().eq('id',id);if(error)throw error;aComercios($('#adm'))})}
 function saveLogo(id){merchSet(id,{logo_url:$('#lg'+id).value.trim()||null})}
