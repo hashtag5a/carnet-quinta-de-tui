@@ -267,11 +267,11 @@ function lsSet(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 function lsGet(k){try{return localStorage.getItem(k)}catch(e){return null}}
 async function afterLogin(){
   const g = ssGet('qt_gift');
-  if(g){ssDel('qt_gift'); try{const r=await rpc('claim_gift',{p_code:g}); S.cur=r.id; S.giftOpened=true}catch(e){toast(e.message,true)}}
+  if(g){ssDel('qt_gift'); try{const r=await rpc('claim_gift',{p_code:g}); S.cur=r.id; S.giftOpened=r.transfer?'transfer':'gift'}catch(e){toast(e.message,true)}}
   await loadAll();
   const story = ssGet('qt_story');
   if(story && S.cards.length){ssDel('qt_story'); modal(storyHTML(story)+'<button class="full mt" onclick="closeModal()">Ir a mi carnet</button>')}
-  if(S.giftOpened){S.giftOpened=false; const c=cur(); modal(`<div class="center"><img src="escudo.jpg" style="width:110px;border-radius:50%"><h2>¡Bienvenido a la Quinta, ${esc(c.first_name)}!</h2><p>Este carnet es un regalo. Ya eres socio nº ${c.member_no}.</p><p class="muted small">Elige en «Partidos» los equipos que quieres seguir.</p><button class="full" onclick="closeModal()">Ver mi carnet</button></div>`)}
+  if(S.giftOpened){const c=cur(); modal(`<div class="center"><img src="escudo.jpg" style="width:110px;border-radius:50%"><h2>¡Bienvenido a la Quinta, ${esc(c.first_name)}!</h2><p>${S.giftOpened==='transfer'?'Tu carnet ya está en tu móvil.':'Este carnet es un regalo.'} Eres socio nº ${c.member_no}.</p><p class="muted small">Elige en «Partidos» los equipos que quieres seguir.</p><button class="full" onclick="closeModal()">Ver mi carnet</button></div>`); S.giftOpened=false}
 }
 
 /* ---------- finales de las historias de los WhatsApp ---------- */
@@ -324,7 +324,7 @@ function renderLogin(){
     if(error) throw new Error('Código incorrecto o caducado');
     S.user=data.user; await afterLogin();
   });
-  if(gift) rpc('gift_info',{p_code:gift}).then(g=>{ if(g) $('#giftintro').innerHTML=`<div class="banner ok"><b>${esc(g.first_name)}, te han regalado el carnet de socio de la Quinta.</b><br>Entra con tu email para abrirlo. No tienes que rellenar nada más.</div>`}).catch(()=>{});
+  if(gift) rpc('gift_info',{p_code:gift}).then(g=>{ if(g) $('#giftintro').innerHTML=g.transfer?`<div class="banner ok"><b>${esc(g.first_name)}, tu carnet de socio de la Quinta te está esperando.</b><br>Entra con tu email y pasará a tu móvil. No tienes que rellenar nada más.</div>`:`<div class="banner ok"><b>${esc(g.first_name)}, te han regalado el carnet de socio de la Quinta.</b><br>Entra con tu email para abrirlo. No tienes que rellenar nada más.</div>`}).catch(()=>{});
 }
 
 /* ---------- alta de socios ---------- */
@@ -420,6 +420,7 @@ async function viewCarnet(el, c){
   </div>
   ${c.gift_code?`<div class="banner ${[0,1].includes(new Date().getMonth())?'warn':'ok'}"><b>Este carnet es un regalo para ${esc(c.first_name)}.</b> Todavía no lo ha abierto.${c.status==='activo'?'':' Se activará cuando recibamos el pago.'}<br><button class="mt" onclick="printGift('${c.id}')">🎁 Tarjeta regalo para imprimir</button>${[0,1].includes(new Date().getMonth())?'<br><span class="small">Recuérdale que lo abra: solo tiene que escanear el QR de la tarjeta.</span>':''}</div>`:''}
   <button class="full" onclick="openScanner()">${svg('scan')}Escanear QR</button>
+  ${c.shareable?`<button class="sec full mt" onclick="shareCard('${c.id}')">${svg('familia')}Pasar este carnet al móvil de ${esc(c.first_name)}</button>${c.transfer_code?'<p class="muted small center">Enlace preparado: todavía no lo ha abierto.</p>':''}`:''}
   <p class="muted small center">Enséñalo en los comercios adheridos y escanea su QR para sumar puntos.</p>
   <div id="refbox"></div><div id="lotbox"></div>
   <div class="tiles">
@@ -465,6 +466,18 @@ function buyLottery(){const q=+$('#lq').value, L=S.settings.loteria||{};
   modal(`<h3>Pedir ${q} participación${q>1?'es':''}</h3><p>Total: <b>${q*L.importe} €</b>. Las pagas y recoges en el club.</p><div class="row"><button class="sec" onclick="closeModal()">Cancelar</button><button id="lok">Pedir</button></div>`);
   $('#lok').onclick=()=>guard(async()=>{await rpc('lottery_request',{p_qty:q});closeModal();toast('Pedido hecho');loadLotBox()});
 }
+function shareCard(id){guard(async()=>{
+  const c=S.cards.find(x=>x.id===id); const code=await rpc('share_card',{p_member:id}); c.transfer_code=code;
+  const url=APP_URL+'#regalo-'+code;
+  const txt=`${c.first_name}, aquí tienes tu carnet de socio de la Quinta. Ábrelo, entra con tu email y ya lo tienes en tu móvil: ${url}`;
+  modal(`<div class="center"><h2>Pasar el carnet de ${esc(c.first_name)}</h2>
+   <p class="small">Que lo escanee con su móvil, o mándale el enlace. Entra con su email y el carnet pasa a su cuenta, con sus puntos.</p>
+   <div style="background:#fff;border-radius:12px;padding:10px;display:inline-block"><img src="${qrImg(url,6)}" alt="QR para pasar el carnet" style="width:200px;display:block"></div>
+   <a class="mt" style="display:block" href="https://wa.me/?text=${encodeURIComponent(txt)}" target="_blank" rel="noopener"><button class="full">Enviar por WhatsApp</button></a>
+   <button class="sec full mt" onclick="copy('${esc(url)}')">Copiar enlace</button>
+   <p class="muted small">Cuando lo abra, este carnet dejará de verse en tu móvil.</p>
+   <button class="link full" onclick="closeModal();render()">Cerrar</button></div>`);
+})}
 function printGift(id){
   const c=S.cards.find(x=>x.id===id); if(!c) return;
   const url=APP_URL+'#regalo-'+c.gift_code;

@@ -1,0 +1,2 @@
+-- Pasar un carnet de la familia a su móvil (migración «pasar_carnet_a_su_movil»): members.transfer_code, share_card,
+-- claim_gift y gift_info aceptan también el código de traspaso; my_cards devuelve shareable y transfer_code.
