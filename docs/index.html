@@ -441,6 +441,7 @@ async function viewCarnet(el, c){
     <div class="pts"><b>${c.points}</b><span class="muted small">puntos</span></div>
   </div>
   ${c.gift_code?`<div class="banner ${[0,1].includes(new Date().getMonth())?'warn':'ok'}"><b>Este carnet es un regalo para ${esc(c.first_name)}.</b> Todavía no lo ha abierto.${c.status==='activo'?'':' Se activará cuando recibamos el pago.'}<br><button class="mt" onclick="printGift('${c.id}')">🎁 Tarjeta regalo para imprimir</button>${[0,1].includes(new Date().getMonth())?'<br><span class="small">Recuérdale que lo abra: solo tiene que escanear el QR de la tarjeta.</span>':''}</div>`:''}
+  ${c.shareable?`<button class="sec full" style="margin-bottom:12px" onclick="shareCard('${c.id}')">${svg('familia')}Pasar este carnet al móvil de ${esc(c.first_name)}</button>${c.transfer_code?'<p class="muted small center" style="margin-top:-6px">Enlace preparado: todavía no lo ha abierto.</p>':''}`:''}
   <div class="homebtns">
    <button class="sec hb" onclick="goTab('puntos')"><span class="ico">${svg('puntos')}</span>Canjear puntos</button>
    <button class="sec hb" onclick="openFamilia()"><span class="ico">${svg('familia')}</span>Carnet familiar</button>
@@ -455,7 +456,7 @@ function openFamilia(){
   if(!sh.length){ altaPeople=[]; renderAlta(true); return; }
   modal(`<h2>Carnet familiar</h2><p class="muted small">Cualquier persona de tu familia: ${(S.settings.precios||{}).familiar||6} € al año, colgando de tu carnet.</p>
    <button class="full" onclick="closeModal();altaPeople=[];renderAlta(true)">${svg('familia')}Añadir un familiar</button>
-   <h3 class="mt">Pasar un carnet a su móvil</h3><p class="muted small">Para que lo lleve en su propio teléfono, con sus puntos.</p>
+   <h3 class="mt">Pasar un carnet a su móvil</h3><p class="muted small">Para que lo lleve en su propio teléfono, con sus puntos. Genera un enlace que tiene que abrir esa persona en su móvil, entrando con su email.</p>
    ${sh.map(x=>`<button class="sec full mt" onclick="closeModal();shareCard('${x.id}')">${esc(x.first_name)}${x.transfer_code?' · enlace pendiente de abrir':''}</button>`).join('')}
    <button class="sec full mt" onclick="closeModal()">Cerrar</button>`);
 }
