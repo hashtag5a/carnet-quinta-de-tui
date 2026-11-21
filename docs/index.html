@@ -93,15 +93,16 @@ button svg,.ico svg{width:22px;height:22px;flex:none}
 .nav button.on{color:var(--cream)}
 .nav button.on .pill{color:var(--bg)}
 .nav button.on .pill::before{content:"";position:absolute;inset:0;border-radius:15px;background:var(--cream);-webkit-mask-image:radial-gradient(circle at 30% 40%,transparent 0 .55px,#000 1px),radial-gradient(circle at 70% 60%,transparent 0 .7px,#000 1.2px);-webkit-mask-size:9px 11px,15px 13px;-webkit-mask-composite:source-in;mask-image:radial-gradient(circle at 30% 40%,transparent 0 .55px,#000 1px),radial-gradient(circle at 70% 60%,transparent 0 .7px,#000 1.2px);mask-size:9px 11px,15px 13px;mask-composite:intersect}
-/* Barra inferior más visible: cada sección como una tecla, iconos más grandes */
+/* Barra inferior más visible: el icono en un botón en relieve y el nombre debajo, con aire */
 body{padding-bottom:calc(98px + env(safe-area-inset-bottom))}
-.nav{gap:6px;padding:8px 8px calc(10px + env(safe-area-inset-bottom));border-top:2px solid var(--line)}
-.nav button{min-height:66px;border-radius:14px;font-size:.78rem;gap:4px;background:linear-gradient(180deg,var(--f1),var(--f2));border:1px solid var(--line);box-shadow:inset 0 1px 0 var(--hi),0 2px 0 var(--edge);color:var(--cream)}
-.nav button:active{transform:translateY(2px);box-shadow:inset 0 1px 0 var(--hi)}
-.nav .pill{width:44px;height:32px}
+.nav{gap:2px;padding:8px 4px calc(10px + env(safe-area-inset-bottom));border-top:2px solid var(--line)}
+.nav button{min-height:66px;gap:5px;font-size:.74rem;color:var(--muted)}
+.nav button:active{transform:none}
+.nav .pill{width:48px;height:40px;border-radius:14px;background:linear-gradient(180deg,var(--f1),var(--f2));border:1px solid var(--line);box-shadow:inset 0 1px 0 var(--hi),0 2px 0 var(--edge);color:var(--cream);transition:transform .08s ease}
+.nav button:active .pill{transform:translateY(2px)}
 .nav .pill svg{width:26px;height:26px}
-.nav button.on{background:linear-gradient(180deg,var(--p1),var(--p2));border-color:var(--pedge);color:var(--pink);box-shadow:inset 0 1px 0 var(--phi),0 2px 0 var(--pedge)}
-.nav button.on .pill{color:var(--pink)}
+.nav button.on{color:var(--cream)}
+.nav button.on .pill{background:linear-gradient(180deg,var(--p1),var(--p2));border-color:var(--pedge);color:var(--pink);box-shadow:inset 0 1px 0 var(--phi),0 2px 0 var(--pedge)}
 .nav button.on .pill::before{display:none}
 /* Botón sol/luna, pequeño, arriba a la derecha */
 #themebtn{position:fixed;top:calc(14px + env(safe-area-inset-top));right:14px;z-index:30;width:40px;height:40px;min-height:0;padding:0;border-radius:50%;background:linear-gradient(180deg,var(--f1),var(--f2));color:var(--cream);border:1px solid var(--line);box-shadow:inset 0 1px 0 var(--hi),0 2px 0 var(--edge),0 6px 12px -4px var(--sh)}
