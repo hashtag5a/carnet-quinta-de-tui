@@ -4,3 +4,4 @@
 -- (settings.misiones: activas, por_mision, bonus).
 -- reto_por_equipos: members.reto_team/reto_changed; set_reto_team (1 cambio al mes); reto_ranking (puntos positivos del mes,
 -- tope por socio); settings.reto {activo, tope_socio, premio}.
+-- clasificaciones: tabla standings (lectura socios) + función futgal-clasificaciones (pg_cron: domingo 22:45 y lunes 12:15, hora de Madrid).

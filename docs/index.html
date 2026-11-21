@@ -63,6 +63,7 @@ button.link:active{transform:none}
 button:disabled{opacity:.5}
 button.full{width:100%;display:flex}
 button svg,.ico svg{width:22px;height:22px;flex:none}
+.clas{width:100%;border-collapse:collapse;font-size:13px}.clas th{font-weight:600;color:var(--muted);font-size:11px;padding:4px 3px}.clas td{padding:6px 3px;text-align:center;border-top:1px solid var(--line)}.clas td.tn{text-align:left;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.clas tr.me td{font-weight:700;background:var(--okbg)}
 .row{display:flex;gap:8px;align-items:center}
 .row>*{flex:1}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
@@ -599,7 +600,24 @@ async function viewPartidos(el, c){
      ${m.finished?`<div class="score">${m.is_home?m.goals_for:m.goals_against} - ${m.is_home?m.goals_against:m.goals_for}</div>`:`<span class="tag" style="border:1px solid var(--line)">${m.is_home?'CASA':'FUERA'}</span>`}</li>`;
   $('#ml').innerHTML = `<div class="box"><h3>Próximos partidos</h3>${next.length?`<ul class="list">${next.map(li).join('')}</ul>`:'<p class="muted small">El calendario se publica el miércoles.</p>'}</div>
    <div class="box"><h3>Resultados</h3>${past.length?`<ul class="list">${past.map(li).join('')}</ul>`:'<p class="muted small">Sin resultados recientes.</p>'}</div>
+   <div id="clas"></div>
    <p class="muted small center">En los partidos en casa, escanea el cartel del pabellón para sumar puntos. El del senior preferente vale doble.</p>`;
+  loadStandings(ids, tn);
+}
+async function loadStandings(ids, tn){
+  const {data}=await sb.from('standings').select('team_id,competition,jornada,our_name,rows').in('team_id',ids);
+  const el=$('#clas'); if(!el||!data||!data.length) return;
+  const short=n=>n.replace(/\s+-\s+[^"]*/,' ').replace(/\s+/g,' ').trim();
+  const ord=ids.filter(i=>data.some(d=>d.team_id===i));
+  el.innerHTML=`<div class="box"><h3>Clasificación</h3>${ord.length>1?`<div class="chips" id="clt">${ord.map((i,k)=>`<button class="chip ${k?'':'on'}" data-c="${i}">${esc(tn[i]||'')}</button>`).join('')}</div>`:''}<div id="clb"></div></div>`;
+  const show=id=>{const d=data.find(x=>x.team_id===id); if(!d) return;
+    const me=r=>r.team===d.our_name||(/QUINTA/i.test(r.team)&&r.team.replace(/\s+/g,' ')===String(d.our_name||'').replace(/\s+/g,' '));
+    $('#clb').innerHTML=`<p class="muted small" style="margin:6px 0">${esc(d.competition||'')} · jornada ${d.jornada}</p>
+     <div style="overflow-x:auto"><table class="clas"><thead><tr><th></th><th style="text-align:left">Equipo</th><th>Pts</th><th>J</th><th>G</th><th>E</th><th>P</th><th>DG</th></tr></thead><tbody>
+     ${d.rows.map(r=>`<tr class="${me(r)?'me':''}"><td>${r.pos}</td><td class="tn">${esc(short(r.team))}</td><td><b>${r.pts}</b></td><td>${r.j}</td><td>${r.g}</td><td>${r.e}</td><td>${r.p}</td><td>${r.gf-r.gc>0?'+':''}${r.gf-r.gc}</td></tr>`).join('')}</tbody></table></div>`;
+    document.querySelectorAll('#clt .chip').forEach(b=>b.classList.toggle('on',+b.dataset.c===id));};
+  document.querySelectorAll('#clt .chip').forEach(b=>b.onclick=()=>show(+b.dataset.c));
+  show(ord[0]);
 }
 
 /* ---------- Misiones semanales ---------- */
