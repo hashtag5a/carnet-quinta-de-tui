@@ -588,11 +588,11 @@ async function viewPartidos(el, c){
     await rpc('set_member_teams',{p_member:c.id,p_teams:n}); c.teams=n; render()}));
   if(!ids.length){$('#ml').innerHTML='<p class="muted center">Elige uno o varios equipos para ver su calendario y sus resultados.</p>';return}
   const from=new Date(Date.now()-21*864e5).toISOString(), to=new Date(Date.now()+35*864e5).toISOString();
-  const {data,error}=await sb.from('matches').select('id,team_id,starts_at,is_home,rival,venue,goals_for,goals_against,finished').in('team_id',ids).gte('starts_at',from).lte('starts_at',to).order('starts_at');
+  const {data,error}=await sb.from('matches').select('id,team_id,starts_at,is_home,rival,venue,goals_for,goals_against,finished,time_tbc').in('team_id',ids).gte('starts_at',from).lte('starts_at',to).order('starts_at');
   if(error) throw error;
   const tn=Object.fromEntries(S.teams.map(t=>[t.id,t.name]));
   const next=data.filter(m=>!m.finished), past=data.filter(m=>m.finished).reverse();
-  const li=m=>`<li class="match"><div class="grow"><div class="date">${fmtDate(m.starts_at)} · ${fmtTime(m.starts_at)} · ${esc(tn[m.team_id])}</div>
+  const li=m=>`<li class="match"><div class="grow"><div class="date">${fmtDate(m.starts_at)} · ${m.time_tbc?'hora por confirmar':fmtTime(m.starts_at)} · ${esc(tn[m.team_id])}</div>
      <div><b>${m.is_home?'Quinta':esc(m.rival)}</b> - <b>${m.is_home?esc(m.rival):'Quinta'}</b></div>${m.venue?`<div class="muted small">${esc(m.venue)}</div>`:''}</div>
      ${m.finished?`<div class="score">${m.is_home?m.goals_for:m.goals_against} - ${m.is_home?m.goals_against:m.goals_for}</div>`:`<span class="tag" style="border:1px solid var(--line)">${m.is_home?'CASA':'FUERA'}</span>`}</li>`;
   $('#ml').innerHTML = `<div class="box"><h3>Próximos partidos</h3>${next.length?`<ul class="list">${next.map(li).join('')}</ul>`:'<p class="muted small">El calendario se publica el miércoles.</p>'}</div>
