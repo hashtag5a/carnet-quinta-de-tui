@@ -1,6 +1,6 @@
 // Clasificaciones: entra en Futgal, coge de la portada la jornada actual de cada competición y grupo del club,
 // baja la clasificación de cada grupo y la guarda en standings (una fila por equipo nuestro, emparejado por
-// categoría, nivel y letra con panel_docs/equipos; la liga manda sobre la fase previa). La lanza pg_cron domingo noche y lunes.
+// categoría, nivel y letra con panel_docs/equipos; la liga manda sobre la fase previa). También pone los resultados de los partidos en matches (y así se cierra la porra). La lanza pg_cron sábado y domingo noche y lunes.
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const BASE = "https://intranet.futgal.es";
@@ -25,6 +25,19 @@ const catOf = (s: string) => { const n = norm(s); return CATS.find(c => n.includ
 const levelOf = (s: string) => { const n = norm(s); for (const [re, v] of LEVEL) if (re.test(n)) return v; return ""; };
 const letterOf = (s: string) => ((s.match(/"([A-Z])"\s*$/) || s.match(/"([A-Z])"/) || [])[1] || "");
 
+// Resultados del buscador de partidos: código de partido y goles local-visitante
+function parseResults(html: string) {
+  const out: { cod: string; gl: number; gv: number }[] = [];
+  const i0 = html.indexOf('<table class="table table-striped'); if (i0 < 0) return out;
+  for (const chunk of html.slice(i0).split(/<tr[\s>]/i)) {
+    const tds = [...chunk.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(m => m[1]);
+    if (tds.length < 7) continue;
+    const cod = clean(tds[0]); if (!/^\d+$/.test(cod)) continue;
+    const r = tds[tds.length - 1].match(/<b>\s*(\d+)\s*<\/b>\s*-\s*<b>\s*(\d+)\s*<\/b>/);
+    if (r) out.push({ cod, gl: +r[1], gv: +r[2] });
+  }
+  return out;
+}
 // Tabla "clasificación resumida": pos | equipo | pts | J | G | E | P | F | C | 5 últimos | sanción
 function parseTable(html: string) {
   const i = html.search(/clasificaci(ó|&oacute;)n detallada/i);
@@ -76,6 +89,23 @@ Deno.serve(async (req) => {
         }
       } catch (e) { informe.errores.push(`${l.comp}/${l.grupo}: ${e}`); }
     }
+    // Resultados de las tres últimas semanas: se guardan en el carnet y cierran la porra (trigger de matches)
+    try {
+      const d = (n: number) => { const x = new Date(Date.now() + n * 864e5); return String(x.getUTCDate()).padStart(2, "0") + "-" + String(x.getUTCMonth() + 1).padStart(2, "0") + "-" + x.getUTCFullYear(); };
+      const lh = await text(await go(`/nfg/NPcd/NFG_LstPartidos?cod_primaria=1000139&Consulta=1&Sch_Cod_Temporada=22&Sch_Clave_Acceso_Club=${CLUB}&Sch_Fecha_Desde=${d(-21)}&Sch_Fecha_Hasta=${d(0)}&NPcd_PageLines=300`));
+      const res = parseResults(lh); informe.resultadosFutgal = res.length; informe.resultados = 0;
+      if (res.length) {
+        const { data: pts } = await sb.from("panel_docs").select("id,data").eq("col", "partidos");
+        const byCod = new Map((pts || []).filter((x: any) => x.data?.codPartido).map((x: any) => [String(x.data.codPartido), x]));
+        for (const r of res) {
+          const pd: any = byCod.get(r.cod); if (!pd) continue;
+          const casa = !!pd.data.casa;
+          const { data: up, error } = await sb.from("matches").update({ goals_for: casa ? r.gl : r.gv, goals_against: casa ? r.gv : r.gl, finished: true })
+            .eq("source_ref", "panel:" + pd.id).eq("finished", false).select("id");
+          if (error) informe.errores.push("resultado " + r.cod + ": " + error.message); else informe.resultados += (up || []).length;
+        }
+      }
+    } catch (e) { informe.errores.push("resultados: " + e); }
     for (const b of Object.values(best)) {
       const { j, prio, ...row } = b;
       const { error } = await sb.from("standings").upsert({ ...row, updated_at: new Date().toISOString() });
