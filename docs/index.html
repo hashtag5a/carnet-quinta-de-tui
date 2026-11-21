@@ -600,6 +600,20 @@ async function viewPartidos(el, c){
    <p class="muted small center">En los partidos en casa, escanea el cartel del pabellón para sumar puntos. El del senior preferente vale doble.</p>`;
 }
 
+/* ---------- Misiones semanales ---------- */
+async function loadMissions(c){
+  let r; try{ r=await rpc('my_missions',{p_member:c.id}) }catch(e){ return }
+  const box=$('#mis'); if(!box||!r||!r.active||!(r.missions||[]).length) return;
+  const d=new Date(r.ends+'T12:00:00'), left=Math.max(0,Math.ceil((d-Date.now())/864e5));
+  box.style.display='';
+  box.innerHTML=`<div style="display:flex;gap:8px;justify-content:space-between;align-items:baseline"><h3 style="margin:0">Misiones de la semana</h3><span class="muted small" style="white-space:nowrap">${left>1?`quedan ${left} días`:left===1?'queda 1 día':'último día'}</span></div>
+   <p class="muted small" style="margin:4px 0 10px">+${r.per} por misión y +${r.bonus} si haces las ${r.missions.length}.</p>
+   ${r.missions.map(m=>{const ok=m.progress>=m.goal;return `<div style="margin:8px 0"><div style="display:flex;gap:8px;justify-content:space-between"><span style="flex:1">${ok?"✓ ":""}${esc(m.text)}</span><span class="muted small">${m.progress}/${m.goal}</span></div>
+     <div style="height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:4px"><div style="height:100%;width:${Math.round(100*m.progress/m.goal)}%;background:var(--ok)"></div></div></div>`}).join('')}
+   ${r.all_done?'<p class="center small" style="margin:10px 0 0"><b>¡Semana completada!</b> El lunes llegan misiones nuevas.</p>':''}`;
+  if(r.awarded>0){ modal(`<div class="center"><div class="big">+${r.awarded}</div><p>${r.all_done?'¡Has completado las misiones de la semana!':'¡Misión cumplida!'}</p><button class="full" onclick="closeModal()">¡Genial!</button></div>`); await refreshCards(); }
+}
+
 /* ---------- Juegos: ruleta y porra ---------- */
 const JUEGOS=[['puzle','Puzle del día','Patrocinadores y colaboradores, con cinco formatos'],['penaltis','Penaltis','Cinco tiros contra el portero'],['toques','Toques','Que no caiga el balón'],['portero','Portero','Para todos los tiros que puedas'],['regate','Regate','Esquiva conos y defensas'],['diana','Diana','Chuta a las dianas en 30 segundos'],['ruleta','Ruleta diaria','Una tirada al día'],['porra','Porra del primer equipo','Pronóstico de cada partido']];
 const gameOn = k => (S.settings.juegos||{})[k] !== false;
@@ -607,7 +621,7 @@ async function viewJuegos(el, c){
   const segs = ((S.settings.puntos||{}).ruleta||[[1],[2],[3],[5],[10],[25]]).map(s=>s[0]);
   const pzP=pzPoints(), on=gameOn;
   if(!JUEGOS.some(j=>on(j[0]))){ el.innerHTML='<div class="box center"><h2>Juegos</h2><p class="muted">Ahora mismo no hay juegos activos. Vuelve pronto.</p></div>'; return; }
-  el.innerHTML = `${on('puzle')?`<div class="box pzday"><img id="pzthumb" alt="" src="${puzzleOfDay().logo}"><div class="grow"><h2 style="margin:0 0 4px">Puzle del día</h2><p class="muted small" style="margin:0">Hoy: <b>${PZ_MODES[pzModeOfDay()].name}</b>, de ${esc(puzzleOfDay().name)}. ${pzP.f} puntos en fácil, ${pzP.d} en difícil y +${pzP.r} si lo haces rápido.</p></div></div>
+  el.innerHTML = `<div class="box" id="mis" style="display:none"></div>${on('puzle')?`<div class="box pzday"><img id="pzthumb" alt="" src="${puzzleOfDay().logo}"><div class="grow"><h2 style="margin:0 0 4px">Puzle del día</h2><p class="muted small" style="margin:0">Hoy: <b>${PZ_MODES[pzModeOfDay()].name}</b>, de ${esc(puzzleOfDay().name)}. ${pzP.f} puntos en fácil, ${pzP.d} en difícil y +${pzP.r} si lo haces rápido.</p></div></div>
     <div class="grid2" style="margin:-4px 0 14px"><button id="pzgo">Jugar</button><button class="sec" id="pzfree">Otro puzle</button></div>`:''}
     ${on('penaltis')||on('toques')?`<div class="tiles">${on('penaltis')?`<button class="sec tile" id="gpen"><span class="ico">${svg('porteria')}</span>Penaltis<span class="muted small" style="font-family:Barlow,sans-serif;margin-top:-6px">${gamePts('penaltis')}</span></button>`:''}
      ${on('toques')?`<button class="sec tile" id="gtoq"><span class="ico">${svg('toques')}</span>Toques<span class="muted small" style="font-family:Barlow,sans-serif;margin-top:-6px">${gamePts('toques')}</span></button>`:''}</div>`:''}
@@ -617,6 +631,7 @@ async function viewJuegos(el, c){
     <button class="full" id="spin" ${c.spun_today||c.status!=='activo'?'disabled':''}>${c.spun_today?'Vuelve mañana':c.status!=='activo'?'Activa tu carnet para jugar':'¡Tirar!'}</button></div>`:''}
     ${on('porra')?`<div class="box" id="porra"><h2>Porra del primer equipo</h2><p class="muted">Cargando…</p></div>
     <div class="box" id="rank"></div>`:''}`;
+  loadMissions(c);
   if($('#pzgo')) $('#pzgo').onclick=()=>openPuzzle(puzzleOfDay(),true,1);
   if($('#gpen')) $('#gpen').onclick=()=>openGame('penaltis'); if($('#gtoq')) $('#gtoq').onclick=()=>openGame('toques');
   el.querySelectorAll('[data-game]').forEach(b=>b.onclick=()=>openGame(b.dataset.game));

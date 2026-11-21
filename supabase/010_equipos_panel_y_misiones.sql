@@ -1,0 +1,4 @@
+-- Aplicado en Supabase (migraciones equipos_y_partidos_desde_panel, orden_equipos_panel, sync_panel_seguro, misiones_semanales).
+-- teams.panel_id y matches.time_tbc; sync_from_panel() copia equipos y partidos del panel (panel_docs) al carnet
+-- con un trigger en panel_docs. my_missions(p_member): 3 misiones por semana, +5 cada una y +15 por completarlas todas
+-- (settings.misiones: activas, por_mision, bonus).
