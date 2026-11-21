@@ -75,6 +75,15 @@ button svg,.ico svg{width:22px;height:22px;flex:none}
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
 .tile{flex-direction:column;align-items:flex-start;justify-content:space-between;text-align:left;min-height:108px;padding:16px;border-radius:18px;font-size:1.1rem}
 .tile .ico{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--well);box-shadow:inset 0 2px 4px var(--sh)}
+/* Pantalla inicial: el carnet y pocos botones grandes */
+.homebtns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:4px 0 14px}
+.hb{flex-direction:column;justify-content:center;gap:10px;min-height:118px;padding:14px 6px;border-radius:20px;font-size:1rem;line-height:1.1;text-align:center}
+.hb .ico,.hblong .ico,.ico.sm{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--well);box-shadow:inset 0 2px 4px var(--sh);flex:none}
+.hb .ico svg{width:24px;height:24px}
+.hblong{min-height:64px;border-radius:20px;font-size:1.15rem;justify-content:flex-start;padding:10px 18px;margin-bottom:18px}
+.hblong .ico{width:40px;height:40px;background:rgba(255,255,255,.12);box-shadow:none}
+.ico.sm{width:36px;height:36px}.ico.sm svg{width:20px;height:20px}
+.ptsb{font-family:var(--display);font-weight:600;white-space:nowrap}
 /* Barra inferior: iconos de línea propios; el activo con sello y un leve despintado */
 .nav{position:fixed;left:0;right:0;bottom:0;background:var(--nav);border-top:1px solid var(--line);box-shadow:0 -8px 20px -12px var(--sh);display:flex;padding:8px 4px calc(10px + env(safe-area-inset-bottom));z-index:10}
 .nav button{flex:1;flex-direction:column;gap:3px;background:none;border:none;box-shadow:none;color:var(--muted);font-family:"Barlow",sans-serif;font-size:.72rem;letter-spacing:0;padding:2px 0;min-height:52px;font-weight:600;border-radius:0}
@@ -84,6 +93,16 @@ button svg,.ico svg{width:22px;height:22px;flex:none}
 .nav button.on{color:var(--cream)}
 .nav button.on .pill{color:var(--bg)}
 .nav button.on .pill::before{content:"";position:absolute;inset:0;border-radius:15px;background:var(--cream);-webkit-mask-image:radial-gradient(circle at 30% 40%,transparent 0 .55px,#000 1px),radial-gradient(circle at 70% 60%,transparent 0 .7px,#000 1.2px);-webkit-mask-size:9px 11px,15px 13px;-webkit-mask-composite:source-in;mask-image:radial-gradient(circle at 30% 40%,transparent 0 .55px,#000 1px),radial-gradient(circle at 70% 60%,transparent 0 .7px,#000 1.2px);mask-size:9px 11px,15px 13px;mask-composite:intersect}
+/* Barra inferior más visible: cada sección como una tecla, iconos más grandes */
+body{padding-bottom:calc(98px + env(safe-area-inset-bottom))}
+.nav{gap:6px;padding:8px 8px calc(10px + env(safe-area-inset-bottom));border-top:2px solid var(--line)}
+.nav button{min-height:66px;border-radius:14px;font-size:.78rem;gap:4px;background:linear-gradient(180deg,var(--f1),var(--f2));border:1px solid var(--line);box-shadow:inset 0 1px 0 var(--hi),0 2px 0 var(--edge);color:var(--cream)}
+.nav button:active{transform:translateY(2px);box-shadow:inset 0 1px 0 var(--hi)}
+.nav .pill{width:44px;height:32px}
+.nav .pill svg{width:26px;height:26px}
+.nav button.on{background:linear-gradient(180deg,var(--p1),var(--p2));border-color:var(--pedge);color:var(--pink);box-shadow:inset 0 1px 0 var(--phi),0 2px 0 var(--pedge)}
+.nav button.on .pill{color:var(--pink)}
+.nav button.on .pill::before{display:none}
 /* Botón sol/luna, pequeño, arriba a la derecha */
 #themebtn{position:fixed;top:calc(14px + env(safe-area-inset-top));right:14px;z-index:30;width:40px;height:40px;min-height:0;padding:0;border-radius:50%;background:linear-gradient(180deg,var(--f1),var(--f2));color:var(--cream);border:1px solid var(--line);box-shadow:inset 0 1px 0 var(--hi),0 2px 0 var(--edge),0 6px 12px -4px var(--sh)}
 #themebtn svg{width:18px;height:18px}
@@ -225,6 +244,8 @@ const ICO = {
   admin:'M12 9a3 3 0 1 1 0 6 3 3 0 0 1 0-6zM19.4 13.5l1.6 1.2-2 3.4-1.9-.7a7 7 0 0 1-1.7 1l-.3 2h-4l-.3-2a7 7 0 0 1-1.7-1l-1.9.7-2-3.4 1.6-1.2a7 7 0 0 1 0-3L3.2 9.3l2-3.4 1.9.7a7 7 0 0 1 1.7-1l.3-2h4l.3 2a7 7 0 0 1 1.7 1l1.9-.7 2 3.4-1.6 1.2a7 7 0 0 1 0 3z',
   porteria:'M2.5 18.5V6.5h19v12M5.5 9.5h13v9M5.5 12.5h13M5.5 15.5h13M9 9.5v9M12 9.5v9M15 9.5v9',
   toques:'M12 10a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zM12 12.6l1.5 1.1-.6 1.8h-1.8l-.6-1.8zM7 7.5l1.4 1.4M17 7.5l-1.4 1.4M12 4v2.5',
+  amigo:'M9 4.8a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4zM3.5 19c.8-3.2 2.9-5 5.5-5s4.7 1.8 5.5 5M16.5 5.2a3 3 0 0 1 0 5.6M18 14.3c1.5.6 2.4 2.2 2.8 4.7',
+  mas:'M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17zM12 8v8M8 12h8',
   scan:'M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M4 12h16',
   regalo:'M20 12v8H4v-8M2.5 7.5h19V12h-19zM12 20V7.5M12 7.5C10.5 4 7 3.5 7 5.8 7 7.5 12 7.5 12 7.5zM12 7.5c1.5-3.5 5-4 5-1.7 0 1.7-5 1.7-5 1.7z',
   familia:'M9 4.8a3.2 3.2 0 1 1 0 6.4 3.2 3.2 0 0 1 0-6.4zM3.5 19c.8-3.2 2.9-5 5.5-5s4.7 1.8 5.5 5M18 8v6M15 11h6',
@@ -419,16 +440,46 @@ async function viewCarnet(el, c){
     <div class="pts"><b>${c.points}</b><span class="muted small">puntos</span></div>
   </div>
   ${c.gift_code?`<div class="banner ${[0,1].includes(new Date().getMonth())?'warn':'ok'}"><b>Este carnet es un regalo para ${esc(c.first_name)}.</b> Todavía no lo ha abierto.${c.status==='activo'?'':' Se activará cuando recibamos el pago.'}<br><button class="mt" onclick="printGift('${c.id}')">🎁 Tarjeta regalo para imprimir</button>${[0,1].includes(new Date().getMonth())?'<br><span class="small">Recuérdale que lo abra: solo tiene que escanear el QR de la tarjeta.</span>':''}</div>`:''}
-  <button class="full" onclick="openScanner()">${svg('scan')}Escanear QR</button>
-  ${c.shareable?`<button class="sec full mt" onclick="shareCard('${c.id}')">${svg('familia')}Pasar este carnet al móvil de ${esc(c.first_name)}</button>${c.transfer_code?'<p class="muted small center">Enlace preparado: todavía no lo ha abierto.</p>':''}`:''}
-  <p class="muted small center">Enséñalo en los comercios adheridos y escanea su QR para sumar puntos.</p>
-  <div id="refbox"></div><div id="lotbox"></div>
-  <div class="tiles">
-   <button class="sec tile" onclick="showVentajas()"><span class="ico">${svg('regalo')}</span>Tus ventajas</button>
-   <button class="sec tile" onclick="altaPeople=[];renderAlta(true)"><span class="ico">${svg('familia')}</span>Añadir familiar<span class="muted small" style="font-family:Barlow,sans-serif;margin-top:-6px">${(S.settings.precios||{}).familiar||6} €</span></button>
+  <div class="homebtns">
+   <button class="sec hb" onclick="goTab('puntos')"><span class="ico">${svg('puntos')}</span>Canjear puntos</button>
+   <button class="sec hb" onclick="openFamilia()"><span class="ico">${svg('familia')}</span>Carnet familiar</button>
+   <button class="sec hb" onclick="openAmigo()"><span class="ico">${svg('amigo')}</span>Trae a un amigo</button>
   </div>
+  <button class="full hblong" onclick="openMasPuntos()"><span class="ico">${svg('mas')}</span>Consigue más puntos</button>
   <p class="center"><button class="link" onclick="logout()">Cerrar sesión</button> ${S.admin?'':'<button class="link" onclick="claimAdmin()">Soy administrador</button>'}</p>`;
-  loadRefBox(); loadLotBox();
+}
+const goTab = t => { closeModal(); S.tab=t; render(); scrollTo(0,0); };
+function openFamilia(){
+  const sh=S.cards.filter(x=>x.shareable);
+  if(!sh.length){ altaPeople=[]; renderAlta(true); return; }
+  modal(`<h2>Carnet familiar</h2><p class="muted small">Cualquier persona de tu familia: ${(S.settings.precios||{}).familiar||6} € al año, colgando de tu carnet.</p>
+   <button class="full" onclick="closeModal();altaPeople=[];renderAlta(true)">${svg('familia')}Añadir un familiar</button>
+   <h3 class="mt">Pasar un carnet a su móvil</h3><p class="muted small">Para que lo lleve en su propio teléfono, con sus puntos.</p>
+   ${sh.map(x=>`<button class="sec full mt" onclick="closeModal();shareCard('${x.id}')">${esc(x.first_name)}${x.transfer_code?' · enlace pendiente de abrir':''}</button>`).join('')}
+   <button class="sec full mt" onclick="closeModal()">Cerrar</button>`);
+}
+function openAmigo(){
+  modal(`<div id="refbox"><p class="muted center">Cargando…</p></div><button class="sec full mt" onclick="closeModal()">Cerrar</button>`);
+  loadRefBox().then(()=>{ const b=$('#refbox'); if(b&&b.textContent.includes('Cargando')) b.innerHTML='<h3>Trae a un amigo</h3><p class="muted small">Activa tu carnet para invitar a tus amigos.</p>'; });
+}
+function openMasPuntos(){
+  const P=S.settings.puntos||{}, on=k=>typeof gameOn==='function'?gameOn(k):true;
+  const row=(ico,t,pts,go)=>`<li><span class="ico sm">${svg(ico)}</span><div class="grow"><b>${t}</b></div><b class="ptsb">${pts}</b>${go?`<button class="sec" style="flex:0;min-height:38px;padding:6px 12px" onclick="${go}">Ir</button>`:''}</li>`;
+  modal(`<h2>Consigue más puntos</h2>
+   <button class="full" onclick="closeModal();openScanner()">${svg('scan')}Escanear QR</button>
+   <ul class="list mt">
+    ${row('comercios','Entra en un comercio y escanea su QR','+'+(P.comercio_entrada||10),"goTab('comercios')")}
+    ${row('comercios','Compra en un comercio y escanea el QR del mostrador','+'+(P.comercio_venta||25),"goTab('comercios')")}
+    ${row('partidos','Ve a un partido en casa y escanea el cartel','+'+(P.asistencia||10),"goTab('partidos')")}
+    ${on('puzle')?row('juegos','Puzle del día','+'+(P.puzle||3),"goTab('juegos')"):''}
+    ${on('penaltis')?row('porteria','Penaltis','hasta +'+(5*(P.penaltis_gol||1)+(P.penaltis_pleno||3)),"goTab('juegos')"):''}
+    ${on('toques')?row('toques','Toques','hasta +'+(P.toques_max||8),"goTab('juegos')"):''}
+    ${on('ruleta')?row('juegos','Ruleta diaria','+1 a +25',"goTab('juegos')"):''}
+    ${on('porra')?row('partidos','Acierta la porra','+'+(P.porra_exacto||10),"goTab('juegos')"):''}
+    ${row('amigo','Trae a un amigo','',"closeModal();openAmigo()")}
+    ${row('regalo','Tu cumpleaños','+'+(P.cumple||25),'')}
+   </ul>
+   <button class="sec full mt" onclick="closeModal()">Cerrar</button>`);
 }
 function showVentajas(){
   const pct=(S.settings.club||{}).campus_descuento||5;
@@ -441,7 +492,7 @@ function showVentajas(){
 async function loadRefBox(){
   const r = await rpc('my_referrals').catch(()=>null); const el=$('#refbox'); if(!r||!el) return;
   const link = APP_URL+'#invita-'+r.code, hitos=r.hitos||[], next=hitos.find(h=>r.count<h[0]);
-  el.innerHTML = `<div class="box"><h3>Trae a un socio</h3><p class="small">Por cada persona que se haga socia con tu número, <b>${r.puntos} puntos para ti y ${r.puntos} para ella</b> cuando pague. Los carnets de tu propia familia no cuentan.</p>
+  el.innerHTML = `<div class="box"><h3>Trae a un amigo</h3><p class="small">Por cada persona que se haga socia con tu número, <b>${r.puntos} puntos para ti y ${r.puntos} para ella</b> cuando pague. Los carnets de tu propia familia no cuentan.</p>
    <p>Tu número de socio: <b>${r.code}</b></p>
    <div class="row"><button class="sec" onclick="shareInvite('${esc(link)}')">Compartir invitación</button></div>
    <p class="small mt">Has traído <b>${r.count}</b> socio${r.count===1?'':'s'}${r.pending?` (y ${r.pending} pendiente${r.pending===1?'':'s'} de pago)`:''}.${next?` Te faltan ${next[0]-r.count} para: ${esc(next[1])}.`:''}</p>
@@ -1010,7 +1061,8 @@ async function viewPuntos(el, c){
     sb.from('redemptions').select('id,status,created_at,points_used,euros,paid,prizes(name)').eq('member_id',c.id).neq('status','anulado').order('created_at',{ascending:false}).limit(20)]);
   S.shop = pz.data||[];
   const st = r => r.status==='entregado'?['activo','ENTREGADO']:!r.paid?['pendiente','PAGAR '+eur(r.euros)]:['activo','LISTO PARA RECOGER'];
-  el.innerHTML = `<div class="box center"><div class="muted">Tienes</div><div class="big">${fmtPts(c.points)}</div><div class="muted">puntos</div></div>
+  el.innerHTML = `<div class="box center"><div class="muted">Tienes</div><div class="big">${fmtPts(c.points)}</div><div class="muted">puntos</div><button class="link mt" onclick="showVentajas()">Ver todas tus ventajas de socio</button></div>
+   <div id="lotbox"></div>
    <div class="box"><h3>Tienda</h3><p class="muted small">Con puntos suficientes te lo llevas gratis. Si te faltan, pagas solo la diferencia.</p>
    ${S.shop.length?`<ul class="list">${S.shop.map(p=>`<li><div class="grow"><b>${esc(p.name)}</b>${p.sponsor?` <span class="muted small">· ${esc(p.sponsor)}</span>`:''}
      ${p.description?`<div class="muted small">${esc(p.description)}</div>`:''}
@@ -1019,6 +1071,7 @@ async function viewPuntos(el, c){
      <button style="flex:0;white-space:nowrap" ${c.status!=='activo'||p.stock===0||(p.price_eur==null&&c.points<p.cost_points)?'disabled':''} onclick="orderModal(${p.id})">Lo quiero</button></li>`).join('')}</ul>`:'<p class="muted small">Pronto habrá productos.</p>'}</div>
    ${(rd.data||[]).length?`<div class="box"><h3>Tus pedidos</h3><ul class="list small">${rd.data.map(r=>{const t=st(r);return `<li><div class="grow">${esc(r.prizes?.name)}<div class="muted small">${r.points_used?fmtPts(r.points_used)+' pts':''}${r.points_used&&+r.euros?' + ':''}${+r.euros?eur(r.euros):''}</div></div><span class="tag ${t[0]}">${t[1]}</span></li>`}).join('')}</ul><p class="muted small">Se recogen en el club enseñando tu carnet.</p></div>`:''}
    <div class="box"><h3>Movimientos</h3>${(led.data||[]).length?`<ul class="list small">${led.data.map(l=>`<li><div class="grow">${esc(l.reason)}<div class="muted small">${fmtDate(l.created_at)}</div></div><b>${l.delta>0?'+':''}${l.delta}</b></li>`).join('')}</ul>`:'<p class="muted small">Aún no tienes movimientos. ¡Tira de la ruleta!</p>'}</div>`;
+  loadLotBox();
 }
 function orderModal(id){
   const p=S.shop.find(x=>x.id===id), c=cur(); if(!p) return;
