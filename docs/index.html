@@ -614,6 +614,26 @@ async function loadMissions(c){
   if(r.awarded>0){ modal(`<div class="center"><div class="big">+${r.awarded}</div><p>${r.all_done?'¡Has completado las misiones de la semana!':'¡Misión cumplida!'}</p><button class="full" onclick="closeModal()">¡Genial!</button></div>`); await refreshCards(); }
 }
 
+/* ---------- Reto por equipos ---------- */
+const MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+async function loadReto(c){
+  let r; try{ r=await rpc('reto_ranking',{p_member:c.id}) }catch(e){ return }
+  const box=$('#reto'); if(!box||!r||!r.active||!(r.teams||[]).length) return;
+  box.style.display='';
+  const max=Math.max(1,...r.teams.map(t=>t.pts)), mes=MESES[+r.month-1];
+  const top=r.teams.filter(t=>t.pts>0||t.id===r.mine).slice(0,8), mi=r.teams.findIndex(t=>t.id===r.mine);
+  if(r.mine&&!top.some(t=>t.id===r.mine)) top.push(r.teams[mi]);
+  box.innerHTML=`<h3 style="margin:0 0 4px">Reto por equipos · ${mes}</h3>
+   <p class="muted small" style="margin:0 0 10px">Tus puntos del mes suman para tu equipo (hasta ${r.cap} por socio).${r.premio?` El equipo que gane se lleva: <b>${esc(r.premio)}</b>.`:''}</p>
+   ${top.length&&top.some(t=>t.pts>0)?top.map(t=>{const pos=r.teams.indexOf(t)+1,me=t.id===r.mine;return `<div style="display:flex;align-items:center;gap:8px;margin:7px 0${me?';font-weight:700':''}">
+     <span style="width:18px;text-align:right">${pos}</span><span style="width:118px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(t.name)}</span>
+     <div style="flex:1;height:8px;border-radius:4px;background:var(--line);overflow:hidden"><div style="height:100%;width:${Math.round(100*t.pts/max)}%;background:${me?'var(--ok)':'var(--muted)'}"></div></div>
+     <span class="small" style="width:44px;text-align:right">${t.pts}</span></div>`}).join(''):'<p class="muted small">Todavía nadie ha sumado puntos este mes. ¡Empieza tú!</p>'}
+   <label class="small muted" style="display:block;margin-top:10px">${r.mine?'Juegas con':'Elige con qué equipo juegas el reto'}</label>
+   <select id="retot"><option value="">—</option>${r.teams.slice().sort((a,b)=>(S.teams.findIndex(x=>x.id===a.id))-(S.teams.findIndex(x=>x.id===b.id))).map(t=>`<option value="${t.id}" ${t.id===r.mine?'selected':''}>${esc(t.name)}</option>`).join('')}</select>`;
+  $('#retot').onchange=e=>guard(async()=>{ if(!e.target.value) return; try{ await rpc('set_reto_team',{p_member:c.id,p_team:+e.target.value}); toast('¡Ya juegas con tu equipo!') } finally { loadReto(c) } });
+}
+
 /* ---------- Juegos: ruleta y porra ---------- */
 const JUEGOS=[['puzle','Puzle del día','Patrocinadores y colaboradores, con cinco formatos'],['penaltis','Penaltis','Cinco tiros contra el portero'],['toques','Toques','Que no caiga el balón'],['portero','Portero','Para todos los tiros que puedas'],['regate','Regate','Esquiva conos y defensas'],['diana','Diana','Chuta a las dianas en 30 segundos'],['ruleta','Ruleta diaria','Una tirada al día'],['porra','Porra del primer equipo','Pronóstico de cada partido']];
 const gameOn = k => (S.settings.juegos||{})[k] !== false;
@@ -621,7 +641,7 @@ async function viewJuegos(el, c){
   const segs = ((S.settings.puntos||{}).ruleta||[[1],[2],[3],[5],[10],[25]]).map(s=>s[0]);
   const pzP=pzPoints(), on=gameOn;
   if(!JUEGOS.some(j=>on(j[0]))){ el.innerHTML='<div class="box center"><h2>Juegos</h2><p class="muted">Ahora mismo no hay juegos activos. Vuelve pronto.</p></div>'; return; }
-  el.innerHTML = `<div class="box" id="mis" style="display:none"></div>${on('puzle')?`<div class="box pzday"><img id="pzthumb" alt="" src="${puzzleOfDay().logo}"><div class="grow"><h2 style="margin:0 0 4px">Puzle del día</h2><p class="muted small" style="margin:0">Hoy: <b>${PZ_MODES[pzModeOfDay()].name}</b>, de ${esc(puzzleOfDay().name)}. ${pzP.f} puntos en fácil, ${pzP.d} en difícil y +${pzP.r} si lo haces rápido.</p></div></div>
+  el.innerHTML = `<div class="box" id="mis" style="display:none"></div><div class="box" id="reto" style="display:none"></div>${on('puzle')?`<div class="box pzday"><img id="pzthumb" alt="" src="${puzzleOfDay().logo}"><div class="grow"><h2 style="margin:0 0 4px">Puzle del día</h2><p class="muted small" style="margin:0">Hoy: <b>${PZ_MODES[pzModeOfDay()].name}</b>, de ${esc(puzzleOfDay().name)}. ${pzP.f} puntos en fácil, ${pzP.d} en difícil y +${pzP.r} si lo haces rápido.</p></div></div>
     <div class="grid2" style="margin:-4px 0 14px"><button id="pzgo">Jugar</button><button class="sec" id="pzfree">Otro puzle</button></div>`:''}
     ${on('penaltis')||on('toques')?`<div class="tiles">${on('penaltis')?`<button class="sec tile" id="gpen"><span class="ico">${svg('porteria')}</span>Penaltis<span class="muted small" style="font-family:Barlow,sans-serif;margin-top:-6px">${gamePts('penaltis')}</span></button>`:''}
      ${on('toques')?`<button class="sec tile" id="gtoq"><span class="ico">${svg('toques')}</span>Toques<span class="muted small" style="font-family:Barlow,sans-serif;margin-top:-6px">${gamePts('toques')}</span></button>`:''}</div>`:''}
@@ -631,7 +651,7 @@ async function viewJuegos(el, c){
     <button class="full" id="spin" ${c.spun_today||c.status!=='activo'?'disabled':''}>${c.spun_today?'Vuelve mañana':c.status!=='activo'?'Activa tu carnet para jugar':'¡Tirar!'}</button></div>`:''}
     ${on('porra')?`<div class="box" id="porra"><h2>Porra del primer equipo</h2><p class="muted">Cargando…</p></div>
     <div class="box" id="rank"></div>`:''}`;
-  loadMissions(c);
+  loadMissions(c); loadReto(c);
   if($('#pzgo')) $('#pzgo').onclick=()=>openPuzzle(puzzleOfDay(),true,1);
   if($('#gpen')) $('#gpen').onclick=()=>openGame('penaltis'); if($('#gtoq')) $('#gtoq').onclick=()=>openGame('toques');
   el.querySelectorAll('[data-game]').forEach(b=>b.onclick=()=>openGame(b.dataset.game));
@@ -1450,6 +1470,17 @@ async function aJuegos(b){
     const {error}=await sb.from('settings').upsert({key:'juegos',value:v}); if(error){ x.checked=!x.checked; throw error; }
     S.settings.juegos=v; toast((JUEGOS.find(j=>j[0]===x.dataset.g)||[])[1]+(x.checked?' activado':' desactivado'));
   }));
+  const {data:st}=await sb.from('settings').select('key,value').in('key',['reto','misiones']);
+  const g=k=>((st||[]).find(x=>x.key===k)||{}).value||{}; const re=g('reto'), mi=g('misiones');
+  b.insertAdjacentHTML('beforeend',`<div class="box"><h3>Misiones semanales</h3><p class="muted small">Tres misiones cada semana. Puntos por misión y extra por hacer las tres.</p>
+    <div class="chk"><input type="checkbox" id="mia" ${mi.activas!==false?'checked':''}><span>Misiones activas</span></div>
+    <div class="grid2"><label class="small">Por misión<input id="mip" type="number" min="0" value="${mi.por_mision??5}"></label><label class="small">Extra por las tres<input id="mib" type="number" min="0" value="${mi.bonus??15}"></label></div><button class="mt" id="miok">Guardar</button></div>
+   <div class="box"><h3>Reto por equipos</h3><p class="muted small">Cada mes, los puntos de los socios suman para el equipo que eligen. El tope evita que una sola persona decida el reto.</p>
+    <div class="chk"><input type="checkbox" id="rea" ${re.activo!==false?'checked':''}><span>Reto activo</span></div>
+    <label class="small">Tope de puntos por socio al mes<input id="ret" type="number" min="10" value="${re.tope_socio??150}"></label>
+    <label class="small">Premio para el equipo ganador (se ve en el carnet)<input id="rep" value="${esc(re.premio||'')}" placeholder="Ej.: merienda para todo el equipo"></label><button class="mt" id="reok">Guardar</button></div>`);
+  $('#miok').onclick=()=>guard(async()=>{const {error}=await sb.from('settings').upsert({key:'misiones',value:{activas:$('#mia').checked,por_mision:+$('#mip').value||0,bonus:+$('#mib').value||0}});if(error)throw error;toast('Guardado')});
+  $('#reok').onclick=()=>guard(async()=>{const {error}=await sb.from('settings').upsert({key:'reto',value:{activo:$('#rea').checked,tope_socio:+$('#ret').value||150,premio:$('#rep').value.trim()}});if(error)throw error;toast('Guardado')});
 }
 async function aAjustes(b){
   const pago=(S.settings.pago||{}).texto||'';

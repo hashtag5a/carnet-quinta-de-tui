@@ -2,3 +2,5 @@
 -- teams.panel_id y matches.time_tbc; sync_from_panel() copia equipos y partidos del panel (panel_docs) al carnet
 -- con un trigger en panel_docs. my_missions(p_member): 3 misiones por semana, +5 cada una y +15 por completarlas todas
 -- (settings.misiones: activas, por_mision, bonus).
+-- reto_por_equipos: members.reto_team/reto_changed; set_reto_team (1 cambio al mes); reto_ranking (puntos positivos del mes,
+-- tope por socio); settings.reto {activo, tope_socio, premio}.
