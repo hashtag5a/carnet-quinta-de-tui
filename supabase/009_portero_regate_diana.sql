@@ -1,0 +1,2 @@
+-- Minijuegos Portero, Regate y Diana (migración «minijuegos_portero_regate_diana»): game_done acepta los tres,
+-- con comprobación de marcas; puntos 1 cada 2 paradas / 5 regates / 2 dianas, máximo 5 al día cada uno; activables en Gestión → Juegos.
