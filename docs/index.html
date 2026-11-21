@@ -591,7 +591,9 @@ async function viewPartidos(el, c){
   const {data,error}=await sb.from('matches').select('id,team_id,starts_at,is_home,rival,venue,goals_for,goals_against,finished,time_tbc').in('team_id',ids).gte('starts_at',from).lte('starts_at',to).order('starts_at');
   if(error) throw error;
   const tn=Object.fromEntries(S.teams.map(t=>[t.id,t.name]));
-  const next=data.filter(m=>!m.finished), past=data.filter(m=>m.finished).reverse();
+  const d0=new Date(); d0.setHours(0,0,0,0); const wd=d0.getDay(); // 5 vie, 6 sáb, 0 dom
+  if(wd===6) d0.setDate(d0.getDate()-1); else if(wd===0) d0.setDate(d0.getDate()-2);
+  const next=data.filter(m=>!m.finished&&new Date(m.starts_at)>=d0), past=data.filter(m=>m.finished).reverse();
   const li=m=>`<li class="match"><div class="grow"><div class="date">${fmtDate(m.starts_at)} · ${m.time_tbc?'hora por confirmar':fmtTime(m.starts_at)} · ${esc(tn[m.team_id])}</div>
      <div><b>${m.is_home?'Quinta':esc(m.rival)}</b> - <b>${m.is_home?esc(m.rival):'Quinta'}</b></div>${m.venue?`<div class="muted small">${esc(m.venue)}</div>`:''}</div>
      ${m.finished?`<div class="score">${m.is_home?m.goals_for:m.goals_against} - ${m.is_home?m.goals_against:m.goals_for}</div>`:`<span class="tag" style="border:1px solid var(--line)">${m.is_home?'CASA':'FUERA'}</span>`}</li>`;
