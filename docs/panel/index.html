@@ -135,6 +135,7 @@ details.sub summary{cursor:pointer;font-weight:600;font-size:14px}
 .legend i{display:inline-block;width:14px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 
 .plan{width:100%;border-collapse:collapse;font-size:14px;min-width:820px}
+@media (max-width:560px){.plan.cu .c-pag,.plan.cu .desc{display:none}.plan.cu td,.plan.cu th{padding:7px 4px}.plan.cu{font-size:13px}.plan.cu th{white-space:normal}}
 .plan th{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;text-align:left;padding:8px 8px;border-bottom:1px solid var(--line)}
 .plan td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
 .plan tr.off td{color:var(--muted)}
@@ -1236,6 +1237,32 @@ function cardMonitores(tem){
     !lista.length ? h("div", {class:"meta"}, "Todavía no hay monitores en esta temporada.") : h("div", {class:"row", style:"justify-content:space-between;border-top:1px solid var(--line);padding-top:10px;flex-wrap:wrap;gap:6px"}, h("b", null, "Total"), h("span", null, "Hasta hoy ", h("b", null, eur(c.hastaHoy)), " · Temporada ", h("b", null, eur(c.proyeccion)))),
     h("div", {class:"row end"}, h("button", {class:"btn ghost small", type:"button", onclick:() => guardarMonitores(tem, [...lista, {id: uid(), nombre:"", importe:0, meses:10, inicio: mesesT[0]}])}, "+ Añadir monitor")));
 }
+/* Previsión de Futgal a fin de periodo: lo cargado hasta hoy + lo que se cargó el año anterior desde esta misma fecha
+   hasta el final del periodo. Excepción: cuotas de inscripción, que se cargan de una vez al inscribir los equipos;
+   si ya están cargadas, se da por hecho que no habrá más. Periodos ya cerrados: lo que hay. */
+const menos1 = f => (+f.slice(0,4) - 1) + f.slice(4);
+function proyFutgal(p, r){
+  const hoy = new Date().toISOString().slice(0,10), out = {}, base = k => ({proy: r[k].importe, extra: 0, ref: false});
+  CONCEPTOS.forEach(([k]) => out[k] = base(k));
+  let fin = null, ant = [];
+  if (p.modo === "anio"){
+    if (p.anio !== hoy.slice(0,4)) return out;
+    fin = p.anio + "-12-31";
+    ant = Object.keys(S.cuentas).filter(k => k.startsWith("t_")).flatMap(k => S.cuentas[k].items || []);
+  } else {
+    if (!p.extra || p.extra.temporada !== temporadaActual() || hoy > p.extra.hasta) return out;
+    const y = +p.extra.temporada.slice(0,4), prev = S.cuentas["t_" + (y - 1) + "-" + y];
+    if (!prev) return out;
+    fin = p.extra.hasta; ant = prev.items || [];
+  }
+  const desde = menos1(hoy), hasta = menos1(fin);
+  CONCEPTOS.forEach(([k]) => {
+    if (k === "cuotas" && r[k].n) return;
+    const extra = ant.filter(x => x.concepto === k && x.fecha > desde && x.fecha <= hasta).reduce((s,x) => s + x.importe, 0);
+    out[k] = {proy: r[k].importe + extra, extra, ref: true};
+  });
+  return out;
+}
 // Periodo elegido: una temporada o un año natural (para subvenciones)
 function periodoCuentas(){
   const tems = Object.keys(S.cuentas).filter(k => k.startsWith("t_")).sort().reverse();
@@ -1252,11 +1279,11 @@ function periodoCuentas(){
 }
 async function excelCuentas(p){
   if (!await cargarLib("XLSX", "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js")){ toast("No se pudo preparar el Excel."); return; }
-  const X = window.XLSX, wb = X.utils.book_new(), r = resumenDe(p.items), mon = monitoresPeriodo(p), fin = p.modo === "anio" ? "Previsto fin de año" : "Previsto fin de temporada";
+  const X = window.XLSX, wb = X.utils.book_new(), r = resumenDe(p.items), mon = monitoresPeriodo(p), pf = proyFutgal(p, r), pfTot = CONCEPTOS.reduce((s2,[k]) => s2 + pf[k].proy, 0), fin = p.modo === "anio" ? "Previsto fin de año" : "Previsto fin de temporada";
   const add = (rows, name, cols) => { const ws = X.utils.json_to_sheet(rows); ws["!cols"] = cols.map(w => ({wch:w})); X.utils.book_append_sheet(wb, ws, name); };
-  add([...CONCEPTOS.map(([k,l]) => ({"Concepto": l + " (" + CONCEPTO_INFO[k].toLowerCase() + ")", "Gasto hasta hoy": r2(r[k].importe), "Pagado": r2(r[k].pagado), "Pendiente de pago": r2(r[k].pendiente), [fin]: r2(r[k].importe)})),
+  add([...CONCEPTOS.map(([k,l]) => ({"Concepto": l + " (" + CONCEPTO_INFO[k].toLowerCase() + ")", "Gasto hasta hoy": r2(r[k].importe), "Pagado": r2(r[k].pagado), "Pendiente de pago": r2(r[k].pendiente), [fin]: r2(pf[k].proy), "Cómo se prevé": pf[k].ref ? (pf[k].extra > 0.004 ? "Hasta hoy + " + eur(pf[k].extra) + " que se cargaron el año pasado desde esta fecha" : "Hasta hoy (el año pasado no hubo más desde esta fecha)") : k === "cuotas" && r[k].n ? "Ya cargadas: no habrá más" : "Periodo cerrado"})),
     {"Concepto": "Monitores (meses ya terminados)", "Gasto hasta hoy": r2(mon.hastaHoy), "Pagado": r2(mon.hastaHoy), "Pendiente de pago": 0, [fin]: r2(mon.proyeccion)},
-    {"Concepto": "TOTAL GASTO", "Gasto hasta hoy": r2(r.total.importe + mon.hastaHoy), "Pagado": r2(r.total.pagado + mon.hastaHoy), "Pendiente de pago": r2(r.total.pendiente), [fin]: r2(r.total.importe + mon.proyeccion)}], "Resumen", [60, 16, 12, 18, 24]);
+    {"Concepto": "TOTAL GASTO", "Gasto hasta hoy": r2(r.total.importe + mon.hastaHoy), "Pagado": r2(r.total.pagado + mon.hastaHoy), "Pendiente de pago": r2(r.total.pendiente), [fin]: r2(pfTot + mon.proyeccion)}], "Resumen", [60, 16, 12, 18, 24, 60]);
   if (mon.filas.length) add(mon.filas.filter(m => m.meses).map(m => ({"Monitor": m.nombre, "Temporada": m.temporada, "€ al mes": r2(m.importe), "Meses en el periodo": m.meses, "Desde": mesTxt(m.desde), "Hasta": mesTxt(m.hasta), "Meses ya terminados": m.hechos, "Gasto hasta hoy": r2(m.hastaHoy), [fin]: r2(m.proyeccion), ...Object.fromEntries(Object.entries(m.porAnio).sort().map(([a,v]) => ["Año " + a, r2(v)]))})), "Monitores", [26, 11, 10, 10, 16, 16, 10, 14, 22, 12, 12]);
   const nom = Object.fromEntries(CONCEPTOS);
   const filas = p.items.filter(x => !["pagos","ayudas"].includes(x.concepto)).sort((a,b) => a.fecha.localeCompare(b.fecha)).map(x => ({"Fecha": fechaCorta(x.fecha), "Temporada": x.temporada, "Concepto": nom[x.concepto] || x.concepto, "Descripción": x.descripcion, "Importe": r2(x.importe), "Pagado": r2(x.pagado), "Pendiente": r2(x.pendiente), "Plazos pendientes": (x.plazos || []).filter(f => f.estado === "pendiente").map(f => eur(f.importe) + " vence " + fechaCorta(f.vence)).join("; "), "Documento": x.doc ? x.doc.split("/").pop() : ""}));
@@ -1276,7 +1303,8 @@ async function zipCuentas(p){
 }
 function viewCuentas(){
   const st = S.cuentas._estado, p = periodoCuentas(), r = resumenDe(p.items), mon = monitoresPeriodo(p);
-  const tot = {hoy: r.total.importe + mon.hastaHoy, pagado: r.total.pagado + mon.hastaHoy, pendiente: r.total.pendiente, proy: r.total.importe + mon.proyeccion};
+  const pf = proyFutgal(p, r);
+  const tot = {hoy: r.total.importe + mon.hastaHoy, pagado: r.total.pagado + mon.hastaHoy, pendiente: r.total.pendiente, proy: CONCEPTOS.reduce((s2,[k]) => s2 + pf[k].proy, 0) + mon.proyeccion};
   const plazos = p.items.flatMap(x => (x.plazos || []).filter(f => f.estado === "pendiente")).reduce((o,f) => (o[f.vence] = (o[f.vence] || 0) + f.importe, o), {});
   const hoy = new Date(), inicio = hoy.getMonth() >= 6 ? hoy.getFullYear() : hoy.getFullYear() - 1, opciones = [];
   for (let y = inicio; y >= 2017; y--) opciones.push(y + "-" + (y + 1)); // la primera es la temporada en curso
@@ -1305,12 +1333,12 @@ function viewCuentas(){
         h("div", {class:"card-head"}, h("div", null, h("h3", null, p.titulo || "Temporada " + temporadaActual()), h("div", {class:"meta"}, !p.tems.length ? "Pulsa «Actualizar de Futgal» para traer los gastos de la Federación." : p.modo === "anio" ? "Gastos fechados en " + p.anio + " (de las temporadas traídas de Futgal)" : "Del " + fechaCorta(p.extra.desde) + " al " + fechaCorta(p.extra.hasta))),
           h("div", {style:"text-align:right"}, h("div", {class:"meta"}, "Gasto a día de hoy"), h("b", {style:"font-size:22px"}, eur(tot.hoy)), h("div", {class:"meta"}, (p.modo === "anio" ? "Previsto a fin de año: " : "Previsto a fin de temporada: ") + eur(tot.proy)))),
         h("div", {class:"chips"}, h("span", {class:"pill ok"}, "Pagado " + eur(tot.pagado)), h("span", {class:"pill bad"}, "Pendiente de pago " + eur(tot.pendiente)), tot.proy - tot.hoy > 0.004 ? h("span", {class:"pill steel"}, "Falta por gastar " + eur(tot.proy - tot.hoy)) : null),
-        h("div", {class:"scroll"}, h("table", {class:"plan", style:"min-width:0"},
-          h("thead", null, h("tr", null, ["Concepto","Hasta hoy","Pagado","Pendiente", p.modo === "anio" ? "Fin de año" : "Fin de temporada"].map((t,i) => h("th", {style: i ? "text-align:right" : ""}, t)))),
-          h("tbody", null, CONCEPTOS.filter(([k]) => r[k].n).map(([k,l]) => h("tr", null, h("td", null, l, h("div", {class:"meta"}, CONCEPTO_INFO[k])), h("td", {style:"text-align:right;white-space:nowrap"}, eur(r[k].importe)), h("td", {style:"text-align:right;white-space:nowrap"}, eur(r[k].pagado)), h("td", {style:"text-align:right;white-space:nowrap;" + (r[k].pendiente > 0.004 ? "color:var(--bad);font-weight:600" : "")}, eur(r[k].pendiente)), h("td", {style:"text-align:right;white-space:nowrap"}, eur(r[k].importe)))),
-            mon.n ? h("tr", null, h("td", null, "Monitores", h("div", {class:"meta"}, mon.n + " monitor(es) · meses ya terminados")), h("td", {style:"text-align:right;white-space:nowrap"}, eur(mon.hastaHoy)), h("td", {style:"text-align:right;white-space:nowrap"}, eur(mon.hastaHoy)), h("td", {style:"text-align:right;white-space:nowrap"}, eur(0)), h("td", {style:"text-align:right;white-space:nowrap"}, eur(mon.proyeccion))) : null,
-            h("tr", null, h("td", null, h("b", null, "Total")), h("td", {style:"text-align:right;white-space:nowrap"}, h("b", null, eur(tot.hoy))), h("td", {style:"text-align:right;white-space:nowrap"}, h("b", null, eur(tot.pagado))), h("td", {style:"text-align:right;white-space:nowrap"}, h("b", null, eur(tot.pendiente))), h("td", {style:"text-align:right;white-space:nowrap"}, h("b", null, eur(tot.proy))))))),
-        p.tems.length ? h("div", {class:"meta"}, "Lo de la Federación se cuenta tal como está hoy en Futgal: los arbitrajes y sanciones que vengan no se pueden prever.") : null,
+        h("div", {class:"scroll"}, h("table", {class:"plan cu", style:"min-width:0"},
+          h("thead", null, h("tr", null, ["Concepto","Hasta hoy","Pagado","Pendiente", p.modo === "anio" ? "Previsto fin de año" : "Previsto fin de temporada"].map((t,i) => h("th", {class: i === 2 ? "c-pag" : null, style: i ? "text-align:right" : ""}, t)))),
+          h("tbody", null, CONCEPTOS.filter(([k]) => r[k].n).map(([k,l]) => h("tr", null, h("td", null, l, h("div", {class:"meta desc"}, CONCEPTO_INFO[k])), h("td", {style:"text-align:right;white-space:nowrap"}, eur(r[k].importe)), h("td", {class:"c-pag", style:"text-align:right;white-space:nowrap"}, eur(r[k].pagado)), h("td", {style:"text-align:right;white-space:nowrap;" + (r[k].pendiente > 0.004 ? "color:var(--bad);font-weight:600" : "")}, eur(r[k].pendiente)), h("td", {style:"text-align:right;white-space:nowrap"}, eur(pf[k].proy), pf[k].extra > 0.004 ? h("div", {class:"meta", style:"white-space:normal"}, "+" + eur(pf[k].extra) + " año pasado") : k === "cuotas" && r[k].n && pf.mutualidad.ref ? h("div", {class:"meta"}, "ya cargadas") : null))),
+            mon.n ? h("tr", null, h("td", null, "Monitores", h("div", {class:"meta desc"}, mon.n + " monitor(es) · meses ya terminados")), h("td", {style:"text-align:right;white-space:nowrap"}, eur(mon.hastaHoy)), h("td", {class:"c-pag", style:"text-align:right;white-space:nowrap"}, eur(mon.hastaHoy)), h("td", {style:"text-align:right;white-space:nowrap"}, eur(0)), h("td", {style:"text-align:right;white-space:nowrap"}, eur(mon.proyeccion))) : null,
+            h("tr", null, h("td", null, h("b", null, "Total")), h("td", {style:"text-align:right;white-space:nowrap"}, h("b", null, eur(tot.hoy))), h("td", {class:"c-pag", style:"text-align:right;white-space:nowrap"}, h("b", null, eur(tot.pagado))), h("td", {style:"text-align:right;white-space:nowrap"}, h("b", null, eur(tot.pendiente))), h("td", {style:"text-align:right;white-space:nowrap"}, h("b", null, eur(tot.proy))))))),
+        p.tems.length ? h("div", {class:"meta"}, pf.mutualidad.ref ? "Previsión de Futgal: lo cargado hasta hoy más lo que se cargó el año pasado desde esta misma fecha hasta el final. Las cuotas de inscripción ya están cargadas y no se suman." : (p.modo === "temporada" && p.extra && p.extra.temporada === temporadaActual() ? "Trae también la temporada pasada de Futgal para prever lo que falta; mientras, la previsión de Futgal es lo cargado hasta hoy." : "Periodo cerrado: la previsión es lo que hay.")) : null,
         Object.keys(plazos).length ? h("div", {class:"meta"}, "Plazos de mutualidad pendientes: " + Object.entries(plazos).sort().map(([f,v]) => eur(v) + " el " + fechaCorta(f)).join(" · ")) : null,
         p.modo === "temporada" && p.extra && p.extra.pendienteAnteriores ? h("div", {class:"meta", style:"color:var(--bad)"}, "Además quedan " + eur(p.extra.pendienteAnteriores) + " pendientes de temporadas anteriores.") : null,
         p.modo === "temporada" && p.extra ? h("div", {class:"meta"}, "Saldo de la cuenta del club en Futgal: " + eur(p.extra.saldoCuenta) + (p.extra.saldoCuenta < 0 ? " (el club debe a la Federación)" : "")) : null,
