@@ -1,5 +1,6 @@
 // Fichas vs Cluber: entra en Futgal, saca los jugadores con licencia de cada equipo del club (con su edad)
-// y los busca en Cluber por nombre (la edad desempata). La categoría de Cluber no se usa: manda Futgal.
+// y los busca en Cluber por nombre y apellidos (la edad desempata). La categoría de Cluber no se usa: manda Futgal.
+// Estado en Cluber: alta nueva o renovado = al día (pagando); pendiente de renovar = no renovado; si no aparece, no está en Cluber.
 // Solo se lanza al pulsar el botón del panel. Guarda el resultado en panel_docs (col "fichas", id "ultimo")
 // y la revisión anterior en "anterior", para marcar quién ha entrado en Cluber desde la última vez.
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -96,11 +97,12 @@ async function cluber(info: any) {
       const apellidos = pick(p, "surname", "surnames", "lastName", "last_name", "person.surname", "user.surname") || "";
       const full = (nombre + " " + apellidos).trim() || pick(p, "fullName", "full_name") || "";
       if (!full || p.enabled === false) continue;
-      out.push({ nombre: full, edad: edadDe(pick(p, "birthdate", "birthDate", "birth_date", "person.birthdate", "user.birthdate")), equipo: pick(p, "team.customName", "team.name") || "", estado: p.status || "" });
+      out.push({ nombre: full, edad: edadDe(pick(p, "birthdate", "birthDate", "birth_date", "person.birthdate", "user.birthdate")), equipo: pick(p, "team.customName", "team.name") || "", estado: p.status || "", renovacion: typeof p.renewalStatus === "object" ? p.renewalStatus?.id : p.renewalStatus });
     }
     const total = pick(res, "count", "hydra:totalItems", "totalItems", "total");
     if (total ? page * 100 >= total : items.length < 100) break;
   }
+  info.cluberRenov = out.reduce((o: any, c: any) => { o[String(c.renovacion)] = (o[String(c.renovacion)] || 0) + 1; return o; }, {});
   return out;
 }
 
@@ -110,6 +112,7 @@ async function cluber(info: any) {
 // Con el nombre completo igual es «sí» aunque la edad no cuadre (se avisa: suele ser la fecha mal puesta).
 // Si solo coincide en parte, la edad decide: con ±1 año es «sí»; si no, «no» (otra persona).
 // Si quedan varias personas distintas, desempata la edad; si aun así hay varias, «revisar».
+// Estado en Cluber (renewalStatus): 1 alta nueva y 2 renovado = «si» (pagando); 0 pendiente de renovar = «norenovado».
 function cruzar(equipos: any[], cl: any[]) {
   const C = cl.map(c => ({ ...c, tl: toks(c.nombre) })).map(c => ({ ...c, t: new Set(c.tl), k: c.tl.join(" ") }));
   // Cuántos apellidos de Futgal están en Cluber, contando repetidos (Álvarez Álvarez ≠ Álvarez Acuña)
@@ -133,14 +136,17 @@ function cruzar(equipos: any[], cl: any[]) {
     // La misma persona dada de alta dos veces en Cluber cuenta como una
     const rep = cands.length > 1 && new Set(cands.map(x => x.c.k)).size < cands.length;
     const porNombre = new Map<string, any[]>(); for (const x of cands) porNombre.set(x.c.k, [...(porNombre.get(x.c.k) || []), x]);
-    cands = [...porNombre.values()].map(g => g.find(edadOk) || g[0]);
+    // De una persona repetida, mejor la ficha con la edad buena y que esté renovada o sea alta nueva
+    const pref = (x: any) => (edadOk(x) ? 2 : 0) + (x.c.renovacion === 1 || x.c.renovacion === 2 ? 1 : 0);
+    cands = [...porNombre.values()].map(g => [...g].sort((a, b) => pref(b) - pref(a))[0]);
     if (cands.length > 1) { const ok = cands.filter(edadOk); if (ok.length) cands = ok; }
     const nom = (x: any) => x.c.nombre.replace(/\s+/g, " ").trim() + (x.c.edad != null ? " (" + x.c.edad + ")" : "");
-    delete j.nota; delete j.cluber;
+    delete j.nota; delete j.cluber; delete j.alta;
     if (cands.length === 1) {
       const x = cands[0];
       if (edadOk(x) || x.exacto) {
-        j.enCluber = "si"; j.cluber = nom(x); j.cluberEquipo = x.c.equipo;
+        j.enCluber = x.c.renovacion === 0 ? "norenovado" : "si"; j.cluber = nom(x); j.cluberEquipo = x.c.equipo;
+        j.alta = x.c.renovacion === 1 ? "Alta nueva" : x.c.renovacion === 2 ? "Renovado" : x.c.renovacion === 0 ? "No renovado" : "";
         const notas = [];
         if (!edadOk(x)) notas.push("en Cluber tiene otra edad (" + x.c.edad + "): revisa la fecha de nacimiento");
         if (rep) notas.push("está dado de alta dos veces en Cluber");
@@ -172,13 +178,15 @@ Deno.serve(async (req) => {
     for (const e of prev?.data?.equipos || []) for (const j of e.jugadores || []) antes.set(j.lic, j.enCluber);
     if (prev?.data?.ok) for (const e of equipos) for (const j of e.jugadores) {
       const a = antes.get(j.lic);
-      if (a == null) j.cambio = "nuevo en Futgal"; else if (a !== "si" && j.enCluber === "si") j.cambio = "ha entrado en Cluber"; else if (a === "si" && j.enCluber !== "si") j.cambio = "ya no aparece en Cluber";
+      if (a == null) j.cambio = "nuevo en Futgal";
+      else if (a !== j.enCluber) j.cambio = j.enCluber === "si" ? (a === "norenovado" ? "ha renovado en Cluber" : "ha entrado en Cluber") : j.enCluber === "norenovado" ? "ahora sale como no renovado" : j.enCluber === "no" ? "ya no aparece en Cluber" : "";
+      if (!j.cambio) delete j.cambio;
     }
     if (prev?.data?.ok) await sb.from("panel_docs").upsert({ col: "fichas", id: "anterior", data: prev.data, updated_at: new Date().toISOString() });
     info.ok = true;
   } catch (e) { info.error = String((e as Error).message || e); }
   const all = equipos.flatMap(e => e.jugadores);
-  info.si = all.filter(j => j.enCluber === "si").length; info.no = all.filter(j => j.enCluber === "no").length; info.duda = all.filter(j => j.enCluber === "duda").length;
+  info.si = all.filter(j => j.enCluber === "si").length; info.no = all.filter(j => j.enCluber === "no").length; info.duda = all.filter(j => j.enCluber === "duda").length; info.norenovado = all.filter(j => j.enCluber === "norenovado").length;
   const data = { ...info, equipos };
   if (info.ok) { await sb.from("panel_docs").upsert({ col: "fichas", id: "ultimo", data, updated_at: new Date().toISOString() }); await sb.from("panel_docs").delete().eq("col", "fichas").eq("id", "_error"); }
   else await sb.from("panel_docs").upsert({ col: "fichas", id: "_error", data: info, updated_at: new Date().toISOString() });
