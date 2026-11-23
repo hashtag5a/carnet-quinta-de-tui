@@ -1246,7 +1246,7 @@ function cardMonitores(tem){
       h("div", {class:"meta", style:"flex-basis:100%"}, "Hasta hoy " + eur(m.hastaHoy) + " (" + m.hechos + " de " + m.meses + " meses) · Temporada ", h("b", null, eur(m.proyeccion)), m.hasta ? " · hasta " + mesTxt(m.hasta) : "", Object.keys(m.porAnio).length > 1 ? " · " + Object.entries(m.porAnio).map(([a,v]) => a + ": " + eur(v)).join(" · ") : ""))),
     !lista.length ? h("div", {class:"meta"}, "Todavía no hay monitores en esta temporada.") : h("div", {class:"row", style:"justify-content:space-between;border-top:1px solid var(--line);padding-top:10px;flex-wrap:wrap;gap:6px"}, h("b", null, "Total"), h("span", null, "Hasta hoy ", h("b", null, eur(c.hastaHoy)), " · Temporada ", h("b", null, eur(c.proyeccion)))),
     h("datalist", {id:"cu-categorias"}, categoriasEntreno().map(c => h("option", {value:c}))),
-    efectivoTemporada(tem) ? h("div", {class:"meta"}, "Pagado en efectivo (cajero) en esta temporada: " + eur(efectivoTemporada(tem)) + ". Es lo que cuenta como pagado; lo que pongas aquí es lo previsto.") : null,
+    efectivoTemporada(tem) ? h("div", {class:"meta"}, "Pagado a monitores (efectivo del cajero y gasolinera) en esta temporada: " + eur(efectivoTemporada(tem)) + ". Es lo que cuenta como pagado; lo que pongas aquí es lo previsto.") : null,
     h("div", {class:"row end"}, h("button", {class:"btn ghost small", type:"button", onclick:() => guardarMonitores(tem, [...lista, {id: uid(), nombre:"", categoria:"", importe:0, meses:10, inicio: mesesT[0]}])}, "+ Añadir monitor")));
 }
 /* Previsión de Futgal a fin de periodo: lo cargado hasta hoy + lo que se cargó el año anterior desde esta misma fecha
@@ -1364,7 +1364,7 @@ function cardCluber(cl){
    Cada movimiento del banco tiene una categoría (se puede cambiar en el panel; los cambios van a cuentas/banco_cat).
    Lo que ya sale de Futgal, Cluber o la gestoría no se cuenta dos veces, y lo del Campus queda fuera (otra actividad). */
 const BANCO_CATS = [
-  ["monitores","gasto","Monitores (efectivo del cajero)"], ["material","gasto","Equipaciones y material"], ["desplazamientos","gasto","Desplazamientos (combustible)"],
+  ["monitores","gasto","Monitores (efectivo del cajero y gasolinera)"], ["material","gasto","Equipaciones y material"], ["desplazamientos","gasto","Desplazamientos"],
   ["comidas","gasto","Comidas, cantina y eventos"], ["seguros","gasto","Seguros"], ["otros_gastos","gasto","Otros gastos"],
   ["cuotas_transferencia","ingreso","Cuotas por transferencia"], ["devoluciones","ingreso","Devoluciones de cuotas"], ["subvenciones","ingreso","Subvenciones"],
   ["patrocinios","ingreso","Patrocinios y donaciones"], ["otros_ingresos","ingreso","Otros ingresos"], ["devolucion_ss","ajuste","Devolución de la Seguridad Social (rebaja la de Xaco)"],
@@ -1417,7 +1417,7 @@ function cuentaResultados(p){
     nota: pf[k].extra > 0.004 ? "+" + eur(pf[k].extra) + " año pasado" : k === "cuotas" && r[k].n && pf.mutualidad.ref ? "ya cargadas" : "", grupo: "Federación (Futgal)"}));
   // Monitores: lo pagado es el efectivo sacado del cajero; lo previsto, lo que pongas en «Monitores» (si no, el año pasado)
   const ef = bk ? bk.monitores : {hastaHoy: 0, proyeccion: 0, extra: 0};
-  if (mon.n || ef.hastaHoy || ef.proyeccion) G.push({k:"monitores", l:"Monitores", info: mon.n ? mon.n + " monitor(es) apuntados · pagado en efectivo" : "Pagado en efectivo (cajero)", hoy: ef.hastaHoy, pagado: ef.hastaHoy, pendiente: 0,
+  if (mon.n || ef.hastaHoy || ef.proyeccion) G.push({k:"monitores", l:"Monitores", info: mon.n ? mon.n + " monitor(es) apuntados · pagado en efectivo y gasolinera" : "Pagado en efectivo y gasolinera", hoy: ef.hastaHoy, pagado: ef.hastaHoy, pendiente: 0,
     proy: mon.n ? Math.max(mon.proyeccion, ef.hastaHoy) : ef.proyeccion, nota: mon.n ? "según los monitores apuntados" : ef.extra > 0.004 ? "+" + eur(ef.extra) + " año pasado" : "", grupo: "Personal"});
   const aj = bk ? bk.devolucion_ss.hastaHoy : 0;
   COORD.filter(([k]) => co[k].n || co[k].proyeccion > 0.004).forEach(([k,l]) => { const a = k === "ss" ? aj : 0;
