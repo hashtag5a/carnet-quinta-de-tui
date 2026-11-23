@@ -1409,6 +1409,13 @@ function calcCobros(p){
   }
   return out;
 }
+// Quién hace una transferencia («Transferencia De X, Concepto …»), con las administraciones agrupadas
+function entidadDe(c){
+  c = String(c || "");
+  if (/concello de tui/i.test(c)) return "Concello de Tui"; if (/deputaci/i.test(c)) return "Deputación de Pontevedra"; if (/xunta/i.test(c)) return "Xunta de Galicia"; if (/federaci[oó]n gallega/i.test(c)) return "Federación (RFGF)";
+  const m = c.match(/\bDe\s+(.+?)(?:,\s*Concepto|$)/i), n = (m ? m[1] : c).replace(/[,.\s]+$/,"").trim();
+  return n.toLowerCase().replace(/(^|[\s(])(\p{L})/gu, (a,b,l) => b + l.toUpperCase()).replace(/\b(S\.?l|S\.?a|S\.?c|Slp)\b\.?/gi, x => x.toUpperCase());
+}
 // Todas las partidas de gastos e ingresos del periodo, listas para la tabla y el Excel
 function cuentaResultados(p){
   const r = resumenDe(p.items), pf = proyFutgal(p, r), mon = monitoresPeriodo(p), co = calcCoord(mesesPeriodo(p)), cl = calcCluber(p), bk = calcBanco(p), cb = calcCobros(p);
@@ -1424,13 +1431,30 @@ function cuentaResultados(p){
     G.push({k: "coord_" + k, l, info: "Coordinador deportivo" + (a ? " · descontada una devolución de " + eur(a) : ""), hoy: co[k].hastaHoy - a, pagado: co[k].pagado - a, pendiente: co[k].pendiente, proy: co[k].proyeccion - a, nota: "", grupo: "Personal"}); });
   if (cl.n || cl.proyeccion > 0.004) G.push({k:"cluber", l:"Comisiones de Cluber", info:"Por los cobros hechos con la aplicación", hoy: cl.hastaHoy, pagado: cl.pagado, pendiente: cl.pendiente, proy: cl.proyeccion, nota: cl.extra > 0.004 ? "+" + eur(cl.extra) + " año pasado" : "", grupo: "Otros gastos"});
   if (bk) BANCO_CATS.filter(([k,t]) => t === "gasto" && k !== "monitores").forEach(([k,,l]) => { const x = bk[k]; if (x.n || x.proyeccion > 0.004) G.push({k, l, info:"Del extracto del banco", hoy: x.hastaHoy, pagado: x.hastaHoy, pendiente: 0, proy: x.proyeccion, nota: x.extra > 0.004 ? "+" + eur(x.extra) + " año pasado" : "", grupo: "Otros gastos"}); });
+  // Ingresos en 4 partidas: Cluber, transferencias de jugadores, donaciones de empresas y subvenciones
+  const z = {hastaHoy: 0, extra: 0, proyeccion: 0, n: 0, items: []}, B = k => (bk && bk[k]) || z, ex = e => Math.abs(e) > 0.004 ? (e > 0 ? "+" : "") + eur(e) + " año pasado" : "";
+  const porEntidad = (items, val) => { const o = {}; items.forEach(x => { const n = entidadDe(x.concepto); o[n] = (o[n] || 0) + val(x); }); return Object.entries(o).sort((a,b) => b[1] - a[1]).map(([l,v]) => ({l, v})); };
   if (cb){
-    const c = cb.cuotas;
-    if (c.n) I.push({k:"cuotas_cluber", l:"Cuotas cobradas con Cluber", info: (c.programado ? eur(c.programado) + " programado" : "") + (c.impagado ? (c.programado ? " · " : "") + eur(c.impagado) + " impagado" : ""), hoy: c.cobrado, proy: c.proyeccion, nota: c.resto > 0.004 ? "+" + eur(c.resto) + (c.resto === c.programado ? " programado" : " año pasado") : ""});
-    const sv = {cobrado: cb.socios.cobrado + cb.ventas.cobrado, proyeccion: cb.socios.proyeccion + cb.ventas.proyeccion, n: cb.socios.n + cb.ventas.n};
-    if (sv.n) I.push({k:"socios_cluber", l:"Socios, lotería y ventas (Cluber)", info:"", hoy: sv.cobrado, proy: sv.proyeccion, nota: ""});
+    const c = cb.cuotas, so = cb.socios, ve = cb.ventas;
+    if (c.n || so.n || ve.n) I.push({k:"cluber", l:"Ingresos de Cluber", info:"Cuotas, socios y ventas cobradas con la aplicación (sin Campus)", hoy: c.cobrado + so.cobrado + ve.cobrado, proy: c.proyeccion + so.proyeccion + ve.proyeccion,
+      nota: c.resto > 0.004 ? "+" + eur(c.resto) + (c.resto === c.programado ? " programado" : " año pasado") : "",
+      det: [{l:"Cuotas", v: c.cobrado}, {l:"Socios", v: so.cobrado}, {l:"Lotería, ropa y otras ventas", v: ve.cobrado}, c.programado ? {l:"Cuotas programadas (aún sin cobrar)", v: c.programado, aparte: true} : null, c.impagado ? {l:"Cuotas impagadas (no cuentan)", v: c.impagado, aparte: true} : null].filter(x => x && (x.v || x.aparte))});
   }
-  if (bk) BANCO_CATS.filter(([,t]) => t === "ingreso").forEach(([k,,l]) => { const x = bk[k]; if (x.n || Math.abs(x.proyeccion) > 0.004) I.push({k, l, info:"Del extracto del banco", hoy: x.hastaHoy, proy: x.proyeccion, nota: Math.abs(x.extra) > 0.004 ? (x.extra > 0 ? "+" : "") + eur(x.extra) + " año pasado" : ""}); });
+  if (bk){
+    const t = B("cuotas_transferencia"), d = B("devoluciones"), o = B("otros_ingresos"), fed = x => /federaci/i.test(x.concepto);
+    const oj = o.items.filter(x => !fed(x)), ojHoy = oj.reduce((s,x) => s + x.importe, 0);
+    if (t.n || d.n || oj.length || Math.abs(t.proyeccion + d.proyeccion) > 0.004) I.push({k:"transferencias", l:"Transferencias de jugadores", info:"Cuotas pagadas por transferencia, menos devoluciones", hoy: t.hastaHoy + d.hastaHoy + ojHoy, proy: t.proyeccion + d.proyeccion + ojHoy, nota: ex(t.extra + d.extra),
+      det: [{l:"Transferencias recibidas (" + t.n + ")", v: t.hastaHoy}, {l:"Devoluciones a familias (" + d.n + ")", v: d.hastaHoy}, ojHoy ? {l:"Ropa y otros", v: ojHoy} : null].filter(x => x && x.v)});
+    const pt = B("patrocinios");
+    if (pt.n || pt.proyeccion > 0.004) I.push({k:"donaciones", l:"Donaciones de empresas", info:"Patrocinios y donaciones", hoy: pt.hastaHoy, proy: pt.proyeccion, nota: ex(pt.extra), det: porEntidad(pt.items, x => x.importe)});
+  }
+  { // Subvenciones: las del banco, las transferencias de la Federación y las ayudas que la Federación abona en la cuenta de Futgal
+    const sv = B("subvenciones"), o = B("otros_ingresos"), fedB = o.items.filter(x => /federaci/i.test(x.concepto)), fedHoy = fedB.reduce((s,x) => s + x.importe, 0);
+    const ays = Object.keys(S.cuentas).filter(k => k.startsWith("t_")).flatMap(k => S.cuentas[k].items || []).filter(x => x.concepto === "ayudas");
+    const ay = conPrevision(ays, rangoPeriodo(p), new Date().toISOString().slice(0,10), x => x.importe);
+    const det = porEntidad(sv.items, x => x.importe); if (fedHoy) det.push({l:"Federación (transferencias)", v: fedHoy}); if (ay.hastaHoy) det.push({l:"Federación (ayudas en la cuenta de Futgal)", v: ay.hastaHoy});
+    if (sv.n || ay.n || fedB.length || sv.proyeccion + ay.proyeccion > 0.004) I.push({k:"subvenciones", l:"Subvenciones", info:"Concello, Deputación, Xunta y Federación", hoy: sv.hastaHoy + fedHoy + ay.hastaHoy, proy: sv.proyeccion + fedHoy + ay.proyeccion, nota: ex(sv.extra + ay.extra), det});
+  }
   const sum = (xs, c) => xs.reduce((s,x) => s + (x[c] || 0), 0);
   const tg = {hoy: sum(G,"hoy"), pagado: sum(G,"pagado"), pendiente: sum(G,"pendiente"), proy: sum(G,"proy")}, ti = {hoy: sum(I,"hoy"), proy: sum(I,"proy")};
   return {r, pf, mon, co, cl, bk, cb, G, I, tg, ti, campus: cb ? cb.campus.cobrado : 0};
@@ -1441,11 +1465,14 @@ function cardIngresos(p, R){
   const res = {hoy: R.ti.hoy - R.tg.hoy, proy: R.ti.proy - R.tg.proy}, color = v => v < -0.004 ? "color:var(--bad)" : "color:var(--ok)";
   return h("div", {class:"card"},
     h("div", {class:"card-head", style:"flex-wrap:wrap"}, h("div", {style:"flex:1 1 220px"}, h("h3", null, "Ingresos y resultado"),
-      h("div", {class:"meta"}, "Cuotas de Cluber (sin Campus), banco (transferencias, subvenciones, patrocinios…). Banco hasta el " + fechaCorta((R.bk || {}).corte || "") + ".")),
+      h("div", {class:"meta"}, "Toca una partida para ver el detalle. Banco hasta el " + fechaCorta((R.bk || {}).corte || "") + ".")),
       h("div", {style:"text-align:right"}, h("div", {class:"meta"}, "Resultado a día de hoy"), h("b", {style:"font-size:22px;" + color(res.hoy)}, eur(res.hoy)), h("div", {class:"meta"}, (p.modo === "anio" ? "Previsto a fin de año: " : "Previsto a fin de temporada: "), h("b", {style: color(res.proy)}, eur(res.proy))))),
     h("div", {class:"scroll"}, h("table", {class:"plan cu", style:"min-width:0"},
       h("thead", null, h("tr", null, ["Ingreso","Hasta hoy",fin].map((t,i) => h("th", {style: i ? "text-align:right" : ""}, t)))),
-      h("tbody", null, R.I.map(x => h("tr", null, h("td", null, x.l, x.info ? h("div", {class:"meta desc"}, x.info) : null), h("td", td, eur(x.hoy)), h("td", td, eur(x.proy), x.nota ? h("div", {class:"meta", style:"white-space:normal"}, x.nota) : null))),
+      h("tbody", null, R.I.flatMap(x => { const ab = (ui.ingAbierto || {})[x.k], hay = x.det && x.det.length;
+          return [h("tr", hay ? {style:"cursor:pointer", onclick:() => { ui.ingAbierto = {...(ui.ingAbierto || {}), [x.k]: !ab}; render(); }} : null,
+            h("td", null, hay ? h("span", {class:"meta", style:"display:inline-block;width:14px"}, ab ? "▾" : "▸") : null, h("b", null, x.l), x.info ? h("div", {class:"meta desc"}, x.info) : null), h("td", td, eur(x.hoy)), h("td", td, eur(x.proy), x.nota ? h("div", {class:"meta", style:"white-space:normal"}, x.nota) : null)),
+            ...(ab && hay ? x.det.map(d => h("tr", null, h("td", {style:"padding-left:22px;font-size:13px" + (d.aparte ? ";color:var(--muted)" : "")}, d.l), h("td", {style:"text-align:right;white-space:nowrap;font-size:13px" + (d.aparte ? ";color:var(--muted)" : "")}, eur(d.v)), h("td", null))) : [])]; }),
         h("tr", null, h("td", null, h("b", null, "Total ingresos")), h("td", td, h("b", null, eur(R.ti.hoy))), h("td", td, h("b", null, eur(R.ti.proy)))),
         h("tr", null, h("td", null, "Total gastos"), h("td", td, "−" + eur(R.tg.hoy)), h("td", td, "−" + eur(R.tg.proy))),
         h("tr", null, h("td", null, h("b", null, "Resultado")), h("td", {style:"text-align:right;white-space:nowrap;font-weight:700;" + color(res.hoy)}, eur(res.hoy)), h("td", {style:"text-align:right;white-space:nowrap;font-weight:700;" + color(res.proy)}, eur(res.proy)))))),
@@ -1487,7 +1514,7 @@ async function excelCuentas(p){
   const add = (rows, name, cols) => { const ws = X.utils.json_to_sheet(rows); ws["!cols"] = cols.map(w => ({wch:w})); X.utils.book_append_sheet(wb, ws, name); };
   add([...R.G.map(x => ({"Gasto": x.l, "Detalle": x.info || "", "Hasta hoy": r2(x.hoy), "Pagado": r2(x.pagado), "Pendiente de pago": r2(x.pendiente), [fin]: r2(x.proy), "Nota": x.nota || ""})),
     {"Gasto": "TOTAL GASTOS", "Hasta hoy": r2(R.tg.hoy), "Pagado": r2(R.tg.pagado), "Pendiente de pago": r2(R.tg.pendiente), [fin]: r2(R.tg.proy)}], "Gastos", [34, 50, 12, 12, 16, 22, 30]);
-  add([...R.I.map(x => ({"Ingreso": x.l, "Detalle": x.info || "", "Hasta hoy": r2(x.hoy), [fin]: r2(x.proy), "Nota": x.nota || ""})),
+  add([...R.I.flatMap(x => [{"Ingreso": x.l, "Detalle": x.info || "", "Hasta hoy": r2(x.hoy), [fin]: r2(x.proy), "Nota": x.nota || ""}, ...(x.det || []).map(d => ({"Ingreso": "", "Detalle": "   " + d.l, "Hasta hoy": r2(d.v), "Nota": d.aparte ? "no suma" : ""}))]),
     {"Ingreso": "TOTAL INGRESOS", "Hasta hoy": r2(R.ti.hoy), [fin]: r2(R.ti.proy)},
     {"Ingreso": "TOTAL GASTOS", "Hasta hoy": -r2(R.tg.hoy), [fin]: -r2(R.tg.proy)},
     {"Ingreso": "RESULTADO", "Hasta hoy": r2(R.ti.hoy - R.tg.hoy), [fin]: r2(R.ti.proy - R.tg.proy)}], "Ingresos y resultado", [34, 40, 12, 22, 30]);
