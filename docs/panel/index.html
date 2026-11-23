@@ -1193,6 +1193,49 @@ function resumenDe(items){
   r.total = ["importe","pagado","pendiente"].reduce((o,c) => (o[c] = CONCEPTOS.reduce((s,[k]) => s + r[k][c], 0), o), {});
   return r;
 }
+/* Monitores: los mete a mano quien lleva las cuentas (monitor, importe al mes, meses y mes de inicio).
+   Un mes cuenta como gastado (y pagado) cuando ya ha terminado; la proyección suma todos los meses. */
+const MESES_ES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const temporadaActual = () => { const d = new Date(), y = d.getMonth() >= 6 ? d.getFullYear() : d.getFullYear() - 1; return y + "-" + (y + 1); };
+const mesesDeTemporada = tem => { const y = +tem.slice(0,4); return Array.from({length:12}, (_,i) => { const m = (8 + i) % 12, a = m >= 8 ? y : y + 1; return a + "-" + String(m + 1).padStart(2,"0"); }); }; // septiembre a agosto
+function monitoresDe(tem){ const d = S.cuentas["m_" + tem]; return d && Array.isArray(d.monitores) ? d.monitores : []; }
+function guardarMonitores(tem, lista){ put("cuentas", "m_" + tem, {temporada: tem, monitores: lista, actualizado: new Date().toISOString()}); }
+// Meses (AAAA-MM) que paga cada monitor
+const mesesMonitor = (m) => { const [y, mo] = (m.inicio || "").split("-").map(Number); if (!y || !mo) return []; return Array.from({length: Math.max(0, Math.min(24, +m.meses || 0))}, (_,i) => { const t = (mo - 1) + i; return (y + Math.floor(t / 12)) + "-" + String(t % 12 + 1).padStart(2,"0"); }); };
+// filtro(mes) decide qué meses entran en el periodo (temporada o año natural)
+function calcMonitores(lista, filtro){
+  const ahora = new Date(), mesHoy = ahora.getFullYear() + "-" + String(ahora.getMonth() + 1).padStart(2,"0");
+  const filas = lista.map(m => { const ms = mesesMonitor(m).filter(filtro), imp = +m.importe || 0, hechos = ms.filter(x => x < mesHoy).length;
+    const porAnio = ms.reduce((o,x) => (o[x.slice(0,4)] = (o[x.slice(0,4)] || 0) + imp, o), {});
+    return {...m, meses: ms.length, mesesOrig: +m.meses || 0, hechos, hastaHoy: hechos * imp, proyeccion: ms.length * imp, porAnio, desde: ms[0], hasta: ms[ms.length - 1]}; });
+  return {filas, hastaHoy: filas.reduce((s,x) => s + x.hastaHoy, 0), proyeccion: filas.reduce((s,x) => s + x.proyeccion, 0), n: filas.filter(x => x.meses).length};
+}
+const mesTxt = ym => ym ? MESES_ES[+ym.slice(5,7) - 1] + " " + ym.slice(0,4) : "";
+function monitoresPeriodo(p){
+  if (p.modo === "anio"){
+    const tems = Object.keys(S.cuentas).filter(k => k.startsWith("m_")).map(k => k.slice(2));
+    return calcMonitores(tems.flatMap(t => monitoresDe(t).map(m => ({...m, temporada: t}))), x => x.slice(0,4) === p.anio);
+  }
+  const tem = p.extra ? p.extra.temporada : temporadaActual();
+  return calcMonitores(monitoresDe(tem).map(m => ({...m, temporada: tem})), () => true);
+}
+function cardMonitores(tem){
+  const lista = monitoresDe(tem), c = calcMonitores(lista, () => true), mesesT = mesesDeTemporada(tem);
+  const cambiar = (id, campo, v) => guardarMonitores(tem, lista.map(m => m.id === id ? {...m, [campo]: v} : m));
+  const num = s => { const n = parseFloat(String(s).replace(/\./g, "").replace(",", ".")); return isFinite(n) ? Math.round(n * 100) / 100 : 0; };
+  const f = (label, el, flex) => h("label", {class:"f", style:"flex:" + flex + ";min-width:0;margin:0"}, label, el);
+  return h("div", {class:"card"},
+    h("div", null, h("h3", null, "Monitores · " + tem), h("div", {class:"meta"}, "Pon cada monitor, lo que cobra al mes, cuántos meses y desde qué mes. Un mes cuenta como pagado cuando ya ha terminado.")),
+    c.filas.map(m => h("div", {style:"border-top:1px solid var(--line);padding-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end"},
+      f("Monitor", h("input", {type:"text", value: m.nombre || "", placeholder:"Nombre", onchange:(ev) => cambiar(m.id, "nombre", ev.target.value.trim())}), "2 1 170px"),
+      f("€ al mes", h("input", {type:"text", inputmode:"decimal", value: m.importe ? String(m.importe).replace(".", ",") : "", placeholder:"0,00", onchange:(ev) => cambiar(m.id, "importe", num(ev.target.value))}), "1 1 90px"),
+      f("Meses", h("input", {type:"number", min:"0", max:"24", value: m.mesesOrig || "", onchange:(ev) => cambiar(m.id, "meses", Math.max(0, Math.min(24, parseInt(ev.target.value, 10) || 0)))}), "0 1 70px"),
+      f("Desde", h("select", {onchange:(ev) => cambiar(m.id, "inicio", ev.target.value)}, mesesT.map(x => h("option", {value:x, selected: x === m.inicio}, mesTxt(x)))), "1 1 150px"),
+      h("button", {class:"btn ghost small", type:"button", title:"Quitar", "aria-label":"Quitar a " + (m.nombre || "este monitor"), onclick:() => { if (confirm("¿Quitar a " + (m.nombre || "este monitor") + "?")) guardarMonitores(tem, lista.filter(x => x.id !== m.id)); }}, "✕"),
+      h("div", {class:"meta", style:"flex-basis:100%"}, "Hasta hoy " + eur(m.hastaHoy) + " (" + m.hechos + " de " + m.meses + " meses) · Temporada ", h("b", null, eur(m.proyeccion)), m.hasta ? " · hasta " + mesTxt(m.hasta) : "", Object.keys(m.porAnio).length > 1 ? " · " + Object.entries(m.porAnio).map(([a,v]) => a + ": " + eur(v)).join(" · ") : ""))),
+    !lista.length ? h("div", {class:"meta"}, "Todavía no hay monitores en esta temporada.") : h("div", {class:"row", style:"justify-content:space-between;border-top:1px solid var(--line);padding-top:10px;flex-wrap:wrap;gap:6px"}, h("b", null, "Total"), h("span", null, "Hasta hoy ", h("b", null, eur(c.hastaHoy)), " · Temporada ", h("b", null, eur(c.proyeccion)))),
+    h("div", {class:"row end"}, h("button", {class:"btn ghost small", type:"button", onclick:() => guardarMonitores(tem, [...lista, {id: uid(), nombre:"", importe:0, meses:10, inicio: mesesT[0]}])}, "+ Añadir monitor")));
+}
 // Periodo elegido: una temporada o un año natural (para subvenciones)
 function periodoCuentas(){
   const tems = Object.keys(S.cuentas).filter(k => k.startsWith("t_")).sort().reverse();
@@ -1209,9 +1252,12 @@ function periodoCuentas(){
 }
 async function excelCuentas(p){
   if (!await cargarLib("XLSX", "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js")){ toast("No se pudo preparar el Excel."); return; }
-  const X = window.XLSX, wb = X.utils.book_new(), r = resumenDe(p.items);
+  const X = window.XLSX, wb = X.utils.book_new(), r = resumenDe(p.items), mon = monitoresPeriodo(p), fin = p.modo === "anio" ? "Previsto fin de año" : "Previsto fin de temporada";
   const add = (rows, name, cols) => { const ws = X.utils.json_to_sheet(rows); ws["!cols"] = cols.map(w => ({wch:w})); X.utils.book_append_sheet(wb, ws, name); };
-  add([...CONCEPTOS.map(([k,l]) => ({"Concepto": l + " (" + CONCEPTO_INFO[k].toLowerCase() + ")", "Gasto": r2(r[k].importe), "Pagado": r2(r[k].pagado), "Pendiente de pago": r2(r[k].pendiente)})), {"Concepto": "TOTAL GASTO", "Gasto": r2(r.total.importe), "Pagado": r2(r.total.pagado), "Pendiente de pago": r2(r.total.pendiente)}], "Resumen", [60, 12, 12, 18]);
+  add([...CONCEPTOS.map(([k,l]) => ({"Concepto": l + " (" + CONCEPTO_INFO[k].toLowerCase() + ")", "Gasto hasta hoy": r2(r[k].importe), "Pagado": r2(r[k].pagado), "Pendiente de pago": r2(r[k].pendiente), [fin]: r2(r[k].importe)})),
+    {"Concepto": "Monitores (meses ya terminados)", "Gasto hasta hoy": r2(mon.hastaHoy), "Pagado": r2(mon.hastaHoy), "Pendiente de pago": 0, [fin]: r2(mon.proyeccion)},
+    {"Concepto": "TOTAL GASTO", "Gasto hasta hoy": r2(r.total.importe + mon.hastaHoy), "Pagado": r2(r.total.pagado + mon.hastaHoy), "Pendiente de pago": r2(r.total.pendiente), [fin]: r2(r.total.importe + mon.proyeccion)}], "Resumen", [60, 16, 12, 18, 24]);
+  if (mon.filas.length) add(mon.filas.filter(m => m.meses).map(m => ({"Monitor": m.nombre, "Temporada": m.temporada, "€ al mes": r2(m.importe), "Meses en el periodo": m.meses, "Desde": mesTxt(m.desde), "Hasta": mesTxt(m.hasta), "Meses ya terminados": m.hechos, "Gasto hasta hoy": r2(m.hastaHoy), [fin]: r2(m.proyeccion), ...Object.fromEntries(Object.entries(m.porAnio).sort().map(([a,v]) => ["Año " + a, r2(v)]))})), "Monitores", [26, 11, 10, 10, 16, 16, 10, 14, 22, 12, 12]);
   const nom = Object.fromEntries(CONCEPTOS);
   const filas = p.items.filter(x => !["pagos","ayudas"].includes(x.concepto)).sort((a,b) => a.fecha.localeCompare(b.fecha)).map(x => ({"Fecha": fechaCorta(x.fecha), "Temporada": x.temporada, "Concepto": nom[x.concepto] || x.concepto, "Descripción": x.descripcion, "Importe": r2(x.importe), "Pagado": r2(x.pagado), "Pendiente": r2(x.pendiente), "Plazos pendientes": (x.plazos || []).filter(f => f.estado === "pendiente").map(f => eur(f.importe) + " vence " + fechaCorta(f.vence)).join("; "), "Documento": x.doc ? x.doc.split("/").pop() : ""}));
   add(filas, "Detalle de gastos", [11, 11, 22, 46, 10, 10, 10, 28, 30]);
@@ -1229,7 +1275,8 @@ async function zipCuentas(p){
   if (dl) dl.save({filename: "Documentos Federación " + p.titulo + ".zip", data: blob});
 }
 function viewCuentas(){
-  const st = S.cuentas._estado, p = periodoCuentas(), r = resumenDe(p.items);
+  const st = S.cuentas._estado, p = periodoCuentas(), r = resumenDe(p.items), mon = monitoresPeriodo(p);
+  const tot = {hoy: r.total.importe + mon.hastaHoy, pagado: r.total.pagado + mon.hastaHoy, pendiente: r.total.pendiente, proy: r.total.importe + mon.proyeccion};
   const plazos = p.items.flatMap(x => (x.plazos || []).filter(f => f.estado === "pendiente")).reduce((o,f) => (o[f.vence] = (o[f.vence] || 0) + f.importe, o), {});
   const hoy = new Date(), inicio = hoy.getMonth() >= 6 ? hoy.getFullYear() : hoy.getFullYear() - 1, opciones = [];
   for (let y = inicio; y >= 2017; y--) opciones.push(y + "-" + (y + 1)); // la primera es la temporada en curso
@@ -1241,8 +1288,8 @@ function viewCuentas(){
       h("div", null, x.concepto === "pagos" ? h("span", {class:"pill ok"}, "Pago") : x.concepto === "ayudas" ? h("span", {class:"pill ok"}, "Ayuda") : x.pendiente <= 0.004 ? h("span", {class:"pill ok"}, "Pagado") : x.pagado > 0.004 ? h("span", {class:"pill warn"}, "Pendiente " + eur(x.pendiente)) : h("span", {class:"pill bad"}, "Pendiente"))),
     x.doc ? h("button", {class:"btn ghost small", type:"button", onclick:() => abrirDoc(x.doc)}, "Abrir") : null);
   return [clubBar("Estado de cuentas"), dbNotice(), h("main", {class:"wrap"},
-    h("h2", null, "Gastos con la Federación"),
-    ayuda("cuentas", "Lo que el club gasta en Futgal: lo pagado y lo pendiente de pago.", ["Se actualiza al pulsar «Actualizar de Futgal»: el bot entra y se queda con los datos de ese momento.", "Mutualidad: liquidaciones de las licencias. Se paga una parte con tarjeta y el resto queda en plazos.", "Fichas, cuotas y arbitrajes salen del extracto de la cuenta del club en Futgal. En arbitrajes va todo cargo que no sea ficha ni cuota (tarjetas, sanciones, pabellones…). Cada pago del club se aplica a lo más antiguo, así se sabe qué queda pendiente.", "Para la cuenta de resultados, el gasto total es lo pagado más lo pendiente de pago.", "Todas las liquidaciones y el extracto se guardan en PDF. Elige temporada o año natural para descargarlos juntos (subvenciones).", "Al entrar en Futgal puede cerrar la sesión de quien esté dentro con el usuario del club."]),
+    h("h2", null, "Gastos del club"),
+    ayuda("cuentas", "Lo que el club gasta en Futgal y en monitores: a día de hoy y lo previsto a fin de temporada.", ["Monitores: se meten a mano (importe al mes, meses y mes de inicio). Un mes cuenta como gastado y pagado cuando ya ha terminado; la previsión suma todos los meses. En año natural se reparten los meses de cada año.", "Se actualiza al pulsar «Actualizar de Futgal»: el bot entra y se queda con los datos de ese momento.", "Mutualidad: liquidaciones de las licencias. Se paga una parte con tarjeta y el resto queda en plazos.", "Fichas, cuotas y arbitrajes salen del extracto de la cuenta del club en Futgal. En arbitrajes va todo cargo que no sea ficha ni cuota (tarjetas, sanciones, pabellones…). Cada pago del club se aplica a lo más antiguo, así se sabe qué queda pendiente.", "Para la cuenta de resultados, el gasto total es lo pagado más lo pendiente de pago.", "Todas las liquidaciones y el extracto se guardan en PDF. Elige temporada o año natural para descargarlos juntos (subvenciones).", "Al entrar en Futgal puede cerrar la sesión de quien esté dentro con el usuario del club."]),
     st && !st.ok ? h("div", {class:"banner"}, "La última actualización falló: " + (st.error || "")) : null,
     h("div", {class:"footbar", style:"margin-bottom:12px"},
       h("span", {class:"meta"}, st && st.ok ? "Última actualización: " + new Date(st.fecha).toLocaleString("es-ES", {dateStyle:"short", timeStyle:"short"}) + " (" + st.temporada + ")" : "Todavía no se ha actualizado."),
@@ -1253,21 +1300,24 @@ function viewCuentas(){
       [["temporada","Por temporada"],["anio","Por año natural"]].map(([k,l]) => h("button", {class:"chip-btn", type:"button", "aria-pressed": p.modo === k ? "true" : "false", onclick:() => { ui.cuentaModo = k; render(); }}, l)),
       p.modo === "anio" ? h("select", {"aria-label":"Año", onchange:(ev) => { ui.cuentaAnio = ev.target.value; render(); }}, p.anios.map(a => h("option", {value:a, selected: a === p.anio}, a)))
         : h("select", {"aria-label":"Temporada", onchange:(ev) => { ui.cuentaSel = ev.target.value; render(); }}, p.tems.map(k => h("option", {value:k, selected: k === p.sel}, S.cuentas[k].temporada)))) : null,
-    !p.tems.length ? h("div", {class:"empty"}, "Pulsa «Actualizar de Futgal» para traer la temporada actual.") : h("div", {class:"grid"},
+    h("div", {class:"grid"},
       h("div", {class:"card"},
-        h("div", {class:"card-head"}, h("div", null, h("h3", null, p.titulo), h("div", {class:"meta"}, p.modo === "anio" ? "Gastos fechados en " + p.anio + " (de las temporadas traídas de Futgal)" : "Del " + fechaCorta(p.extra.desde) + " al " + fechaCorta(p.extra.hasta))),
-          h("div", {style:"text-align:right"}, h("div", {class:"meta"}, "Gasto total"), h("b", {style:"font-size:22px"}, eur(r.total.importe)))),
-        h("div", {class:"chips"}, h("span", {class:"pill ok"}, "Pagado " + eur(r.total.pagado)), h("span", {class:"pill bad"}, "Pendiente de pago " + eur(r.total.pendiente))),
+        h("div", {class:"card-head"}, h("div", null, h("h3", null, p.titulo || "Temporada " + temporadaActual()), h("div", {class:"meta"}, !p.tems.length ? "Pulsa «Actualizar de Futgal» para traer los gastos de la Federación." : p.modo === "anio" ? "Gastos fechados en " + p.anio + " (de las temporadas traídas de Futgal)" : "Del " + fechaCorta(p.extra.desde) + " al " + fechaCorta(p.extra.hasta))),
+          h("div", {style:"text-align:right"}, h("div", {class:"meta"}, "Gasto a día de hoy"), h("b", {style:"font-size:22px"}, eur(tot.hoy)), h("div", {class:"meta"}, (p.modo === "anio" ? "Previsto a fin de año: " : "Previsto a fin de temporada: ") + eur(tot.proy)))),
+        h("div", {class:"chips"}, h("span", {class:"pill ok"}, "Pagado " + eur(tot.pagado)), h("span", {class:"pill bad"}, "Pendiente de pago " + eur(tot.pendiente)), tot.proy - tot.hoy > 0.004 ? h("span", {class:"pill steel"}, "Falta por gastar " + eur(tot.proy - tot.hoy)) : null),
         h("div", {class:"scroll"}, h("table", {class:"plan", style:"min-width:0"},
-          h("thead", null, h("tr", null, ["Concepto","Gasto","Pagado","Pendiente"].map((t,i) => h("th", {style: i ? "text-align:right" : ""}, t)))),
-          h("tbody", null, CONCEPTOS.filter(([k]) => r[k].n).map(([k,l]) => h("tr", null, h("td", null, l, h("div", {class:"meta"}, CONCEPTO_INFO[k])), h("td", {style:"text-align:right;white-space:nowrap"}, eur(r[k].importe)), h("td", {style:"text-align:right;white-space:nowrap"}, eur(r[k].pagado)), h("td", {style:"text-align:right;white-space:nowrap;" + (r[k].pendiente > 0.004 ? "color:var(--bad);font-weight:600" : "")}, eur(r[k].pendiente)))),
-            h("tr", null, h("td", null, h("b", null, "Total")), h("td", {style:"text-align:right;white-space:nowrap"}, h("b", null, eur(r.total.importe))), h("td", {style:"text-align:right;white-space:nowrap"}, h("b", null, eur(r.total.pagado))), h("td", {style:"text-align:right;white-space:nowrap"}, h("b", null, eur(r.total.pendiente))))))),
+          h("thead", null, h("tr", null, ["Concepto","Hasta hoy","Pagado","Pendiente", p.modo === "anio" ? "Fin de año" : "Fin de temporada"].map((t,i) => h("th", {style: i ? "text-align:right" : ""}, t)))),
+          h("tbody", null, CONCEPTOS.filter(([k]) => r[k].n).map(([k,l]) => h("tr", null, h("td", null, l, h("div", {class:"meta"}, CONCEPTO_INFO[k])), h("td", {style:"text-align:right;white-space:nowrap"}, eur(r[k].importe)), h("td", {style:"text-align:right;white-space:nowrap"}, eur(r[k].pagado)), h("td", {style:"text-align:right;white-space:nowrap;" + (r[k].pendiente > 0.004 ? "color:var(--bad);font-weight:600" : "")}, eur(r[k].pendiente)), h("td", {style:"text-align:right;white-space:nowrap"}, eur(r[k].importe)))),
+            mon.n ? h("tr", null, h("td", null, "Monitores", h("div", {class:"meta"}, mon.n + " monitor(es) · meses ya terminados")), h("td", {style:"text-align:right;white-space:nowrap"}, eur(mon.hastaHoy)), h("td", {style:"text-align:right;white-space:nowrap"}, eur(mon.hastaHoy)), h("td", {style:"text-align:right;white-space:nowrap"}, eur(0)), h("td", {style:"text-align:right;white-space:nowrap"}, eur(mon.proyeccion))) : null,
+            h("tr", null, h("td", null, h("b", null, "Total")), h("td", {style:"text-align:right;white-space:nowrap"}, h("b", null, eur(tot.hoy))), h("td", {style:"text-align:right;white-space:nowrap"}, h("b", null, eur(tot.pagado))), h("td", {style:"text-align:right;white-space:nowrap"}, h("b", null, eur(tot.pendiente))), h("td", {style:"text-align:right;white-space:nowrap"}, h("b", null, eur(tot.proy))))))),
+        p.tems.length ? h("div", {class:"meta"}, "Lo de la Federación se cuenta tal como está hoy en Futgal: los arbitrajes y sanciones que vengan no se pueden prever.") : null,
         Object.keys(plazos).length ? h("div", {class:"meta"}, "Plazos de mutualidad pendientes: " + Object.entries(plazos).sort().map(([f,v]) => eur(v) + " el " + fechaCorta(f)).join(" · ")) : null,
         p.modo === "temporada" && p.extra && p.extra.pendienteAnteriores ? h("div", {class:"meta", style:"color:var(--bad)"}, "Además quedan " + eur(p.extra.pendienteAnteriores) + " pendientes de temporadas anteriores.") : null,
         p.modo === "temporada" && p.extra ? h("div", {class:"meta"}, "Saldo de la cuenta del club en Futgal: " + eur(p.extra.saldoCuenta) + (p.extra.saldoCuenta < 0 ? " (el club debe a la Federación)" : "")) : null,
         h("div", {class:"row end", style:"gap:8px"},
           h("button", {class:"btn ghost small", type:"button", onclick:() => excelCuentas(p)}, "Descargar Excel"),
           h("button", {class:"btn ghost small", type:"button", onclick:() => zipCuentas(p)}, "Descargar documentos (ZIP)"))),
+      p.modo === "temporada" ? cardMonitores(p.extra ? p.extra.temporada : temporadaActual()) : null,
       [...CONCEPTOS, ["pagos","Pagos del club a la Federación"], ["ayudas","Ayudas recibidas de la Federación"]].filter(([k]) => p.items.some(x => x.concepto === k)).map(([k,l]) => {
         const xs = p.items.filter(x => x.concepto === k);
         return h("details", {class:"card", open: (ui.cuentaAbiertos || new Set()).has(k), ontoggle:(ev) => { ui.cuentaAbiertos = ui.cuentaAbiertos || new Set(); ev.target.open ? ui.cuentaAbiertos.add(k) : ui.cuentaAbiertos.delete(k); }},
