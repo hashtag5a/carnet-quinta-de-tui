@@ -3,7 +3,9 @@
 //  - Liquidaciones: mutualidad de las licencias (se paga con tarjeta; el resto queda fraccionado).
 //  - Fraccionamientos: plazos de esas liquidaciones, pagados o pendientes.
 //  - Extracto de la cuenta del club: derechos de fichas, afiliación de técnicos, cuotas de equipo y club,
-//    cargos de partido (arbitrajes, tarjetas, sanciones) y los pagos del club. Los pagos se aplican a lo más antiguo primero.
+//    cargos de partido (tarjetas, sanciones…) y los pagos del club. Los pagos se aplican a lo más antiguo primero.
+//  - Informe Facturación del Comité de Árbitros: una factura por semana con los árbitros de los partidos,
+//    que se cobra por recibo domiciliado (coincide con los recibos de la Federación del banco).
 // Guarda cada liquidación en PDF y el extracto en el almacenamiento privado `cuentas-docs` (repositorio
 // para subvenciones) y el resultado en panel_docs (col "cuentas", id "t_<temporada>" y "_estado").
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -130,6 +132,19 @@ Deno.serve(async (req) => {
     info.saldoCuenta = ultimo ? ultimo.saldo : 0; // negativo = el club debe a la Federación
     info.pendienteAnteriores = anteriores >= 0.05 ? anteriores : 0;
 
+    // ---- Árbitros: facturas del Comité de Árbitros (Contabilidad → Informe Facturación), se cobran por recibo domiciliado ----
+    const dmy = (f: string) => f.split("-").reverse().join("-");
+    const ca = await text(await go(`/nfg/NPcd/NFG_CA_LstInformesFacturacion?cod_primaria=1000564&buscar=1&Sch_Fecha_Desde=${dmy(desde)}&Sch_Fecha_Hasta=${dmy(hasta)}&Sch_Tipo=0&NPcd_PageLines=500`));
+    const hoyISO = new Date().toISOString().slice(0, 10), hace5 = new Date(Date.now() - 5 * 864e5).toISOString().slice(0, 10);
+    for (const m of ca.matchAll(/<tr>\s*<td[^>]*>&nbsp;(\d\d-\d\d-\d{4})<\/td>\s*<td[^>]*>&nbsp;(\d*)<\/td>\s*<td[^>]*>&nbsp;(\d*)<\/td>\s*<td[^>]*>&nbsp;(-?[\d.]+,\d\d)<\/td>([\s\S]*?)<\/tr>/g)) {
+      const fecha = dmy(m[1]), importe = num(m[4]), fact = m[2] || m[3];
+      const js = (m[5].match(/ImprimirFactura\(([^)]*)\)/) || [])[1];
+      const a = js ? js.split(",").map(x => x.replace(/'/g, "").trim()) : null; // codigo, tipo, codfacturacion, codigo, serie, codtemporada
+      const pdf = a ? `/nfg/NPcd/NFG_CA_LstInformesFacturacion_Imprimir?cod_primaria=1000564&NPcd_Pdf=1&tipo=${a[1]}&serie=${a[4]}&codfacturacion=${a[2]}&cod_temporada=${a[5]}&${a[1] === "1" || a[1] === "3" || a[1] === "4" ? "cod_factura" : "cod_albaran"}=${a[0]}` : "";
+      const pend = fecha > hace5 && fecha <= hoyISO ? importe : 0; // el recibo se carga unos días después de la factura
+      items.push({ id: "a" + fact, fecha, concepto: "arbitros", descripcion: "Árbitros · factura " + fact, importe, pagado: r2(importe - pend), pendiente: pend, forma: "Recibo domiciliado", pdfUrl: pdf, fact });
+    }
+
     // ---- Repositorio de documentos (PDF) ----
     const carpeta = nombre;
     const { data: ya } = await sb.storage.from(BUCKET).list(carpeta, { limit: 1000 });
@@ -146,9 +161,10 @@ Deno.serve(async (req) => {
     for (const it of items.filter(x => x.liq)) it.doc = await subir(`/nfg/NPcd/NFG_GC_VisLiquidacion?cod_primaria=1000192&cod_liquidacion=${it.liq.replace(/\D/g, "")}&cod_temporada=${cod}&nueva_ventana=1&NPcd_Pdf=1`, `Liquidacion ${it.liq}.pdf`);
     const extracto = await subir(`/nfg/NPcd/NFG_GC_LstSaldosInfo?cod_primaria=1000192&clave_acceso=${CLAVE}&NPcd_Pdf=1`, "Extracto cuenta club.pdf", true);
     for (const it of items.filter(x => x.origen === "extracto")) it.doc = extracto;
+    for (const it of items.filter(x => x.pdfUrl)) { it.doc = await subir(it.pdfUrl, `Arbitros factura ${it.fact}.pdf`); delete it.pdfUrl; }
 
     // ---- Resumen ----
-    const conceptos = ["mutualidad", "fichas", "cuotas", "arbitrajes"];
+    const conceptos = ["mutualidad", "fichas", "cuotas", "arbitrajes", "arbitros"];
     const resumen: any = {};
     for (const k of conceptos) { const xs = items.filter(x => x.concepto === k); resumen[k] = { importe: r2(xs.reduce((s, x) => s + x.importe, 0)), pagado: r2(xs.reduce((s, x) => s + x.pagado, 0)), pendiente: r2(xs.reduce((s, x) => s + x.pendiente, 0)), n: xs.length }; }
     resumen.total = { importe: r2(conceptos.reduce((s, k) => s + resumen[k].importe, 0)), pagado: r2(conceptos.reduce((s, k) => s + resumen[k].pagado, 0)), pendiente: r2(conceptos.reduce((s, k) => s + resumen[k].pendiente, 0)) };
