@@ -1114,30 +1114,33 @@ const FICHA_TXT = {si:"Al día", norenovado:"No renovado", no:"No está en Clube
 const FICHA_PILL = {si:"ok", norenovado:"warn", no:"bad", duda:"steel"};
 const fichaTxt = j => j.enCluber === "si" && j.alta ? j.alta : FICHA_TXT[j.enCluber] || "";
 const cuenta = (js, k) => js.filter(j => j.enCluber === k).length;
+// Pago de la cuota en Cluber (solo para los que están al día: renovados o altas nuevas)
+const PAGO_TXT = {pagado:"Pagado", impagado:"Impagado", pendiente:"Pendiente de pago", sincuota:"Sin cuota emitida"};
+const PAGO_PILL = {pagado:"ok", impagado:"bad", pendiente:"warn", sincuota:"steel"};
 async function excelFichas(r){
   if (!window.XLSX){ await new Promise((ok, ko) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"; sc.onload = ok; sc.onerror = ko; document.head.append(sc); }).catch(() => null); }
   if (!window.XLSX){ toast("No se pudo preparar el Excel. Revisa la conexión."); return; }
   const X = window.XLSX, wb = X.utils.book_new();
-  const fila = (e, j) => ({"Equipo": e.nombre, "Categoría": e.categoria, "Jugador (Futgal)": j.nombre, "Edad": j.edad ?? "", "Estado en Cluber": fichaTxt(j), "Nombre en Cluber": j.cluber || "", "Aviso": j.nota || "", "Cambio desde la última vez": j.cambio || ""});
+  const fila = (e, j) => ({"Equipo": e.nombre, "Categoría": e.categoria, "Jugador (Futgal)": j.nombre, "Edad": j.edad ?? "", "Estado en Cluber": fichaTxt(j), "Pago de la cuota": j.pago ? PAGO_TXT[j.pago] : "", "Nombre en Cluber": j.cluber || "", "Aviso": j.nota || "", "Cambio desde la última vez": j.cambio || ""});
   const todas = r.equipos.flatMap(e => e.jugadores.map(j => fila(e, j)));
   const add = (rows, name, cols) => { const ws = X.utils.json_to_sheet(rows); ws["!cols"] = cols.map(w => ({wch:w})); X.utils.book_append_sheet(wb, ws, name); };
-  add(r.equipos.map(e => ({"Equipo": e.nombre, "Categoría": e.categoria, "Fichas": e.jugadores.length, "Al día (renovado o alta nueva)": cuenta(e.jugadores, "si"), "No renovado": cuenta(e.jugadores, "norenovado"), "No está en Cluber": cuenta(e.jugadores, "no"), "Revisar": cuenta(e.jugadores, "duda")})), "Resumen", [42, 34, 8, 14, 12, 16, 9]);
-  add(todas, "Por equipo", [42, 34, 34, 6, 10, 34, 40, 24]);
-  add(r.equipos.flatMap(e => e.jugadores.filter(j => j.enCluber !== "si").map(j => fila(e, j))), "Pendientes", [42, 34, 34, 6, 10, 34, 40, 24]);
+  add(r.equipos.map(e => ({"Equipo": e.nombre, "Categoría": e.categoria, "Fichas": e.jugadores.length, "Al día (renovado o alta nueva)": cuenta(e.jugadores, "si"), "No renovado": cuenta(e.jugadores, "norenovado"), "No está en Cluber": cuenta(e.jugadores, "no"), "Revisar": cuenta(e.jugadores, "duda"), "Pagados": e.jugadores.filter(j => j.pago === "pagado").length, "Impagados": e.jugadores.filter(j => j.pago === "impagado").length, "Pendientes de pago": e.jugadores.filter(j => j.pago === "pendiente").length, "Sin cuota emitida": e.jugadores.filter(j => j.pago === "sincuota").length})), "Resumen", [42, 34, 8, 14, 12, 16, 9, 9, 10, 16, 16]);
+  add(todas, "Por equipo", [42, 34, 34, 6, 14, 18, 34, 40, 24]);
+  add(r.equipos.flatMap(e => e.jugadores.filter(j => j.enCluber !== "si").map(j => fila(e, j))), "Pendientes", [42, 34, 34, 6, 14, 18, 34, 40, 24]);
   X.writeFile(wb, "Fichas vs Cluber " + new Date(r.fecha).toISOString().slice(0, 10) + ".xlsx");
 }
 function viewFichas(){
   const r = S.fichas.ultimo, err = S.fichas._error;
   const errNuevo = err && (!r || String(err.fecha) > String(r.fecha));
   const filtro = ui.fichaFiltro || "todos";
-  const pasa = j => filtro === "todos" || (filtro === "no" ? j.enCluber !== "si" : !!j.cambio);
+  const pasa = j => filtro === "todos" || (filtro === "no" ? j.enCluber !== "si" : filtro === "impagados" ? j.pago === "impagado" : !!j.cambio);
   const pend = j => j.enCluber !== "si";
   const eqs = r ? r.equipos.map(e => ({...e, lista: e.jugadores.filter(pasa)})).filter(e => e.lista.length) : [];
   const cuando = r ? new Date(r.fecha).toLocaleString("es-ES", {dateStyle:"short", timeStyle:"short"}) : "";
   const cambios = r ? r.equipos.reduce((n, e) => n + e.jugadores.filter(j => j.cambio).length, 0) : 0;
   return [clubBar("Fichas y Cluber"), dbNotice(), h("main", {class:"wrap"},
     h("h2", null, "Fichas de Futgal en Cluber"),
-    ayuda("fichas", "Cada ficha de Futgal, equipo por equipo: al día, no renovado o sin alta en Cluber.", ["Al día = en Cluber como alta nueva o renovado (está pagando). No renovado = está en Cluber pero pendiente de renovar. No está en Cluber = no aparece.", "Solo se revisa al pulsar «Comparar ahora». Tarda un minuto.", "Manda Futgal: la categoría de Cluber no se mira. Se busca a cada jugador por nombre y apellidos; si hay dos parecidos, desempata la edad.", "«Revisar» quiere decir que hay más de un parecido o que la edad no cuadra: míralo a mano.", "Al entrar en Futgal puede cerrar la sesión de quien esté dentro con el usuario del club."]),
+    ayuda("fichas", "Cada ficha de Futgal, equipo por equipo: al día, no renovado o sin alta en Cluber.", ["Al día = en Cluber como alta nueva o renovado. Al lado, el pago de su cuota: Pagado, Impagado, Pendiente de pago (cuota emitida o programada, aún sin impagar) o Sin cuota emitida. No renovado = está en Cluber pero pendiente de renovar. No está en Cluber = no aparece.", "Solo se revisa al pulsar «Comparar ahora». Tarda un minuto.", "Manda Futgal: la categoría de Cluber no se mira. Se busca a cada jugador por nombre y apellidos; si hay dos parecidos, desempata la edad.", "«Revisar» quiere decir que hay más de un parecido o que la edad no cuadra: míralo a mano.", "Al entrar en Futgal puede cerrar la sesión de quien esté dentro con el usuario del club."]),
     errNuevo ? h("div", {class:"banner"}, "La última comparación falló: " + err.error) : null,
     h("div", {class:"footbar", style:"margin-bottom:12px"},
       h("span", {class:"meta"}, r ? "Última comparación: " + cuando + " · " + r.futgal + " fichas · " + r.cluber + " en Cluber" : "Todavía no se ha comparado."),
@@ -1145,8 +1148,8 @@ function viewFichas(){
         r ? h("button", {class:"btn ghost", type:"button", onclick:() => excelFichas(r)}, "Descargar Excel") : null,
         h("button", {class:"btn", type:"button", disabled:fichasBusy, onclick:() => compararFichas()}, fichasBusy ? "Comparando…" : "Comparar ahora"))),
     r ? h("div", {class:"chips", style:"margin-bottom:12px"},
-      h("span", {class:"pill ok"}, r.si + " al día"), r.norenovado ? h("span", {class:"pill warn"}, r.norenovado + " no renovados") : null, h("span", {class:"pill bad"}, r.no + " no están en Cluber"), r.duda ? h("span", {class:"pill steel"}, r.duda + " a revisar") : null) : null,
-    r ? h("div", {class:"chips", style:"margin-bottom:12px"}, [["todos","Todos"],["no","Solo pendientes"],["cambios","Cambios desde la última vez (" + cambios + ")"]].map(([k,l]) =>
+      h("span", {class:"pill ok"}, r.si + " al día"), r.norenovado ? h("span", {class:"pill warn"}, r.norenovado + " no renovados") : null, h("span", {class:"pill bad"}, r.no + " no están en Cluber"), r.duda ? h("span", {class:"pill steel"}, r.duda + " a revisar") : null, r.impagados ? h("span", {class:"pill bad"}, r.impagados + " con cuota impagada") : null) : null,
+    r ? h("div", {class:"chips", style:"margin-bottom:12px"}, [["todos","Todos"],["no","Solo pendientes"],["impagados","Cuota impagada (" + (r.equipos || []).reduce((n, e) => n + e.jugadores.filter(j => j.pago === "impagado").length, 0) + ")"],["cambios","Cambios desde la última vez (" + cambios + ")"]].map(([k,l]) =>
       h("button", {class:"chip-btn", type:"button", "aria-pressed": filtro === k ? "true" : "false", onclick:() => { ui.fichaFiltro = k; render(); }}, l))) : null,
     r ? (eqs.length ? h("div", {class:"grid"}, eqs.map(e => h("details", {class:"card", open: filtro !== "todos" || (ui.fichaAbiertos || new Set()).has(e.cod), ontoggle:(ev) => { ui.fichaAbiertos = ui.fichaAbiertos || new Set(); ev.target.open ? ui.fichaAbiertos.add(e.cod) : ui.fichaAbiertos.delete(e.cod); }},
       h("summary", {class:"card-head", style:"cursor:pointer;list-style:none"},
@@ -1157,8 +1160,8 @@ function viewFichas(){
           j.cluber && j.enCluber !== "si" && j.enCluber !== "norenovado" ? h("div", {class:"meta"}, (j.enCluber === "no" ? "Parecido en Cluber (otra persona): " : "En Cluber: ") + j.cluber) : null,
           j.nota ? h("div", {class:"meta", style:"color:var(--warn)"}, "⚠ " + j.nota) : null,
           j.cambio ? h("div", {class:"meta", style:"color:var(--steel)"}, "↻ " + j.cambio) : null),
-        h("span", {class:"pill " + FICHA_PILL[j.enCluber]}, fichaTxt(j))))))))
-      : h("div", {class:"empty"}, filtro === "no" ? "Todos los fichados están al día en Cluber." : "Sin cambios desde la comparación anterior."))
+        h("div", {style:"display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0"}, h("span", {class:"pill " + FICHA_PILL[j.enCluber]}, fichaTxt(j)), j.pago ? h("span", {class:"pill " + PAGO_PILL[j.pago]}, PAGO_TXT[j.pago]) : null)))))))
+      : h("div", {class:"empty"}, filtro === "impagados" ? "Nadie tiene la cuota impagada." : filtro === "no" ? "Todos los fichados están al día en Cluber." : "Sin cambios desde la comparación anterior."))
       : h("div", {class:"empty"}, "Pulsa «Comparar ahora» para hacer la primera comparación."))];
 }
 

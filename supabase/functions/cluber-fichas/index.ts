@@ -97,12 +97,13 @@ async function cluber(info: any) {
       const apellidos = pick(p, "surname", "surnames", "lastName", "last_name", "person.surname", "user.surname") || "";
       const full = (nombre + " " + apellidos).trim() || pick(p, "fullName", "full_name") || "";
       if (!full || p.enabled === false) continue;
-      out.push({ nombre: full, edad: edadDe(pick(p, "birthdate", "birthDate", "birth_date", "person.birthdate", "user.birthdate")), equipo: pick(p, "team.customName", "team.name") || "", estado: p.status || "", renovacion: typeof p.renewalStatus === "object" ? p.renewalStatus?.id : p.renewalStatus });
+      out.push({ nombre: full, edad: edadDe(pick(p, "birthdate", "birthDate", "birth_date", "person.birthdate", "user.birthdate")), equipo: pick(p, "team.customName", "team.name") || "", estado: p.status || "", pendientes: p.pendingCharges, renovacion: typeof p.renewalStatus === "object" ? p.renewalStatus?.id : p.renewalStatus });
     }
     const total = pick(res, "count", "hydra:totalItems", "totalItems", "total");
     if (total ? page * 100 >= total : items.length < 100) break;
   }
   info.cluberRenov = out.reduce((o: any, c: any) => { o[String(c.renovacion)] = (o[String(c.renovacion)] || 0) + 1; return o; }, {});
+  info.cluberPago = out.reduce((o: any, c: any) => { o[c.estado] = (o[c.estado] || 0) + 1; return o; }, {});
   return out;
 }
 
@@ -113,6 +114,8 @@ async function cluber(info: any) {
 // Si solo coincide en parte, la edad decide: con ±1 año es «sí»; si no, «no» (otra persona).
 // Si quedan varias personas distintas, desempata la edad; si aun así hay varias, «revisar».
 // Estado en Cluber (renewalStatus): 1 alta nueva y 2 renovado = «si» (pagando); 0 pendiente de renovar = «norenovado».
+// Pago de la cuota (status de Cluber), solo para «si»: paid / paid-in-cash = pagado; unpaid / overdue = impagado;
+// pending-payment, pending y signed = pendiente (cuota emitida o programada, aún no impagada); new y pending-sign = sin cuota.
 function cruzar(equipos: any[], cl: any[]) {
   const C = cl.map(c => ({ ...c, tl: toks(c.nombre) })).map(c => ({ ...c, t: new Set(c.tl), k: c.tl.join(" ") }));
   // Cuántos apellidos de Futgal están en Cluber, contando repetidos (Álvarez Álvarez ≠ Álvarez Acuña)
@@ -141,12 +144,13 @@ function cruzar(equipos: any[], cl: any[]) {
     cands = [...porNombre.values()].map(g => [...g].sort((a, b) => pref(b) - pref(a))[0]);
     if (cands.length > 1) { const ok = cands.filter(edadOk); if (ok.length) cands = ok; }
     const nom = (x: any) => x.c.nombre.replace(/\s+/g, " ").trim() + (x.c.edad != null ? " (" + x.c.edad + ")" : "");
-    delete j.nota; delete j.cluber; delete j.alta;
+    delete j.nota; delete j.cluber; delete j.alta; delete j.pago;
     if (cands.length === 1) {
       const x = cands[0];
       if (edadOk(x) || x.exacto) {
         j.enCluber = x.c.renovacion === 0 ? "norenovado" : "si"; j.cluber = nom(x); j.cluberEquipo = x.c.equipo;
         j.alta = x.c.renovacion === 1 ? "Alta nueva" : x.c.renovacion === 2 ? "Renovado" : x.c.renovacion === 0 ? "No renovado" : "";
+        if (j.enCluber === "si") { const st = x.c.estado; j.pago = /^paid/.test(st) ? "pagado" : /^(unpaid|overdue)$/.test(st) ? "impagado" : /^(pending-payment|pending|signed)$/.test(st) ? "pendiente" : "sincuota"; }
         const notas = [];
         if (!edadOk(x)) notas.push("en Cluber tiene otra edad (" + x.c.edad + "): revisa la fecha de nacimiento");
         if (rep) notas.push("está dado de alta dos veces en Cluber");
@@ -174,12 +178,13 @@ Deno.serve(async (req) => {
     const cl = await cluber(info); info.cluber = cl.length;
     cruzar(equipos, cl);
     const { data: prev } = await sb.from("panel_docs").select("data").eq("col", "fichas").eq("id", "ultimo").maybeSingle();
-    const antes = new Map<string, string>();
-    for (const e of prev?.data?.equipos || []) for (const j of e.jugadores || []) antes.set(j.lic, j.enCluber);
+    const antes = new Map<string, string>(), pagoAntes = new Map<string, string>();
+    for (const e of prev?.data?.equipos || []) for (const j of e.jugadores || []) { antes.set(j.lic, j.enCluber); if (j.pago) pagoAntes.set(j.lic, j.pago); }
     if (prev?.data?.ok) for (const e of equipos) for (const j of e.jugadores) {
       const a = antes.get(j.lic);
       if (a == null) j.cambio = "nuevo en Futgal";
       else if (a !== j.enCluber) j.cambio = j.enCluber === "si" ? (a === "norenovado" ? "ha renovado en Cluber" : "ha entrado en Cluber") : j.enCluber === "norenovado" ? "ahora sale como no renovado" : j.enCluber === "no" ? "ya no aparece en Cluber" : "";
+      else if (j.pago && pagoAntes.has(j.lic) && pagoAntes.get(j.lic) !== j.pago) j.cambio = j.pago === "pagado" ? "ha pagado la cuota" : j.pago === "impagado" ? "ahora tiene la cuota impagada" : "";
       if (!j.cambio) delete j.cambio;
     }
     if (prev?.data?.ok) await sb.from("panel_docs").upsert({ col: "fichas", id: "anterior", data: prev.data, updated_at: new Date().toISOString() });
@@ -187,6 +192,8 @@ Deno.serve(async (req) => {
   } catch (e) { info.error = String((e as Error).message || e); }
   const all = equipos.flatMap(e => e.jugadores);
   info.si = all.filter(j => j.enCluber === "si").length; info.no = all.filter(j => j.enCluber === "no").length; info.duda = all.filter(j => j.enCluber === "duda").length; info.norenovado = all.filter(j => j.enCluber === "norenovado").length;
+  info.impagados = all.filter(j => j.pago === "impagado").length;
+  info.pagos = all.reduce((o: any, j: any) => { if (j.pago) o[j.pago] = (o[j.pago] || 0) + 1; return o; }, {});
   const data = { ...info, equipos };
   if (info.ok) { await sb.from("panel_docs").upsert({ col: "fichas", id: "ultimo", data, updated_at: new Date().toISOString() }); await sb.from("panel_docs").delete().eq("col", "fichas").eq("id", "_error"); }
   else await sb.from("panel_docs").upsert({ col: "fichas", id: "_error", data: info, updated_at: new Date().toISOString() });
