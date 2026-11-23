@@ -1304,9 +1304,9 @@ function cardCoordinador(p){
   const num = s => { const t = String(s).trim(); if (!t) return null; const n = parseFloat(t.replace(/\./g, "").replace(",", ".")); return isFinite(n) ? Math.round(n * 100) / 100 : null; };
   const fmt = v => v == null ? "" : Number(v).toFixed(2).replace(".", ",");
   const campo = (f, k) => h("div", {style:"flex:1 1 0;max-width:220px;min-width:0;display:flex;gap:4px;align-items:center"},
-    h("input", {type:"text", inputmode:"decimal", style:"text-align:right;min-width:0;padding:7px 6px" + (f[k].estimado ? ";color:var(--muted);font-style:italic" : ""), value: f[k].real != null ? fmt(f[k].real) : "", placeholder: f[k].ant != null ? fmt(f[k].ant) : "", "aria-label": (k === "nomina" ? "Nómina " : "Seguridad Social ") + mesTxt(f.ym), onchange:(ev) => guardarCoordMes(f.ym, k, num(ev.target.value))}),
-    f.docs[k] ? h("button", {class:"btn ghost small", type:"button", style:"padding:2px 6px;flex-shrink:0", title:"Abrir PDF", onclick:() => abrirDoc(f.docs[k])}, "PDF") : null,
-    k === "ss" && f.docs.ssPago ? h("button", {class:"btn ghost small", type:"button", style:"padding:2px 6px;flex-shrink:0", title:"Justificante del cargo en el banco", onclick:() => abrirDoc(f.docs.ssPago)}, "Pago") : null);
+    h("input", {type:"text", inputmode:"decimal", style:"text-align:right;min-width:0;padding:7px 6px" + (f[k].estimado ? ";color:var(--muted);font-style:italic" : ""), value: f[k].real != null ? fmt(f[k].real) : "", placeholder: f[k].ant != null ? fmt(f[k].ant) : "", "aria-label": (k === "nomina" ? "Nómina " : "Seguridad Social ") + mesTxt(f.ym), onchange:(ev) => guardarCoordMes(f.ym, k, num(ev.target.value))}));
+  const DOCS = [["nomina","Nómina"],["ss","Recibo S. Social"],["rnt","RNT"],["ssPago","Pago S. Social"]];
+  const docsDe = f => DOCS.filter(([k]) => f.docs[k]).map(([k,l]) => h("button", {class:"btn ghost small", type:"button", style:"padding:2px 8px", title:"Abrir PDF", onclick:() => abrirDoc(f.docs[k])}, l));
   const estado = f => f.nomina.estimado && f.ss.estimado ? (f.cerrado ? "falta el dato" : "estimado") : f.nomina.estimado || f.ss.estimado ? "en parte estimado" : !f.cerrado ? "" : ymMas(f.ym, 1) < hoy ? "pagado" : "S. Social se carga a fin de " + MESES_ES[+ymMas(f.ym, 1).slice(5,7) - 1];
   return h("div", {class:"card"},
     h("div", {class:"card-head", style:"flex-wrap:wrap"}, h("div", {style:"flex:1 1 220px"}, h("h3", null, "Coordinador deportivo · " + (p.modo === "anio" ? p.anio : (p.extra ? p.extra.temporada : temporadaActual()))),
@@ -1314,9 +1314,10 @@ function cardCoordinador(p){
       h("div", {style:"text-align:right;white-space:nowrap"}, h("div", {class:"meta"}, "Previsto"), h("b", {style:"font-size:20px"}, eur(c.proyeccion)))),
     h("div", {class:"row", style:"gap:8px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600"},
       h("span", {style:"flex:0 1 92px"}, "Mes"), h("span", {style:"flex:1 1 0;max-width:220px;text-align:center"}, "Nómina"), h("span", {style:"flex:1 1 0;max-width:220px;text-align:center"}, "Seg. Social")),
-    c.filas.map(f => h("div", {style:"display:flex;gap:6px;align-items:center;border-top:1px solid var(--line);padding-top:6px" + (f.ym > hoy ? ";opacity:.75" : "")},
+    c.filas.map(f => h("div", {style:"display:flex;flex-wrap:wrap;gap:6px;align-items:center;border-top:1px solid var(--line);padding-top:6px" + (f.ym > hoy ? ";opacity:.75" : "")},
       h("div", {style:"flex:0 1 92px;min-width:0;font-size:13px"}, h("div", null, mesTxt(f.ym)), estado(f) ? h("div", {class:"meta", style:"font-size:11px"}, estado(f)) : null),
-      campo(f, "nomina"), campo(f, "ss"))),
+      campo(f, "nomina"), campo(f, "ss"),
+      docsDe(f).length ? h("div", {style:"flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px;justify-content:flex-end"}, docsDe(f)) : null)),
     h("div", {class:"row", style:"justify-content:space-between;border-top:1px solid var(--line);padding-top:8px;flex-wrap:wrap;gap:6px"}, h("b", null, "Previsto"),
       h("span", null, "Nómina ", h("b", null, eur(c.nomina.proyeccion)), " · Seg. Social ", h("b", null, eur(c.ss.proyeccion)))));
 }
@@ -1342,7 +1343,7 @@ async function excelCuentas(p){
     {"Concepto": "Monitores (meses ya terminados)", "Gasto hasta hoy": r2(mon.hastaHoy), "Pagado": r2(mon.hastaHoy), "Pendiente de pago": 0, [fin]: r2(mon.proyeccion)},
     ...COORD.map(([k,l]) => ({"Concepto": l + " (coordinador deportivo)", "Gasto hasta hoy": r2(co[k].hastaHoy), "Pagado": r2(co[k].pagado), "Pendiente de pago": r2(co[k].pendiente), [fin]: r2(co[k].proyeccion), "Cómo se prevé": "Meses con dato + mismo mes de la temporada pasada para el resto"})),
     {"Concepto": "TOTAL GASTO", "Gasto hasta hoy": r2(r.total.importe + mon.hastaHoy + co.hastaHoy), "Pagado": r2(r.total.pagado + mon.hastaHoy + co.pagado), "Pendiente de pago": r2(r.total.pendiente + co.pendiente), [fin]: r2(pfTot + mon.proyeccion + co.proyeccion)}], "Resumen", [60, 16, 12, 18, 24, 60]);
-  add(co.filas.map(f => ({"Mes": mesTxt(f.ym), "Nómina de Xaco": r2(f.nomina.valor), "Nómina estimada": f.nomina.estimado ? "sí (temporada pasada)" : "", "Seguridad Social": r2(f.ss.valor), "S. Social estimada": f.ss.estimado ? "sí (temporada pasada)" : "", "Documentos": [f.docs.nomina, f.docs.ss, f.docs.ssPago].filter(Boolean).map(x => x.split("/").pop()).join("; ")})), "Coordinador", [16, 14, 20, 16, 20, 60]);
+  add(co.filas.map(f => ({"Mes": mesTxt(f.ym), "Nómina de Xaco": r2(f.nomina.valor), "Nómina estimada": f.nomina.estimado ? "sí (temporada pasada)" : "", "Seguridad Social": r2(f.ss.valor), "S. Social estimada": f.ss.estimado ? "sí (temporada pasada)" : "", "Documentos": [f.docs.nomina, f.docs.ss, f.docs.rnt, f.docs.ssPago].filter(Boolean).map(x => x.split("/").pop()).join("; ")})), "Coordinador", [16, 14, 20, 16, 20, 60]);
   if (mon.filas.length) add(mon.filas.filter(m => m.meses).map(m => ({"Monitor": m.nombre, "Temporada": m.temporada, "€ al mes": r2(m.importe), "Meses en el periodo": m.meses, "Desde": mesTxt(m.desde), "Hasta": mesTxt(m.hasta), "Meses ya terminados": m.hechos, "Gasto hasta hoy": r2(m.hastaHoy), [fin]: r2(m.proyeccion), ...Object.fromEntries(Object.entries(m.porAnio).sort().map(([a,v]) => ["Año " + a, r2(v)]))})), "Monitores", [26, 11, 10, 10, 16, 16, 10, 14, 22, 12, 12]);
   const nom = Object.fromEntries(CONCEPTOS);
   const filas = p.items.filter(x => !["pagos","ayudas"].includes(x.concepto)).sort((a,b) => a.fecha.localeCompare(b.fecha)).map(x => ({"Fecha": fechaCorta(x.fecha), "Temporada": x.temporada, "Concepto": nom[x.concepto] || x.concepto, "Descripción": x.descripcion, "Importe": r2(x.importe), "Pagado": r2(x.pagado), "Pendiente": r2(x.pendiente), "Plazos pendientes": (x.plazos || []).filter(f => f.estado === "pendiente").map(f => eur(f.importe) + " vence " + fechaCorta(f.vence)).join("; "), "Documento": x.doc ? x.doc.split("/").pop() : ""}));
