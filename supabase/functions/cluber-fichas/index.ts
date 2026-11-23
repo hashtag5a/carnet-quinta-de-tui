@@ -44,7 +44,7 @@ async function futgal() {
     const flat = ent(h.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/<[^>]+>/g, "|")).replace(/\s*\|[\s|]*/g, "|");
     const categoria = ((flat.match(/Categoría:\|([^|]+)\|/) || [])[1] || "").trim();
     const i0 = h.search(/Jugadores \(\d+\)/); const rest = i0 >= 0 ? h.slice(i0) : "";
-    const i1 = rest.search(/(Delegados|Entrenadores|T[ée]cnicos|Auxiliares) \(\d+\)/);
+    const i1 = rest.search(/(Delegados|Entrenadores|T(?:&eacute;|é|e)cnicos|Auxiliares|Oficiales)\s*\(\d+\)/);
     const sec = i1 > 0 ? rest.slice(0, i1) : rest;
     const jug: { lic: string; nombre: string; url?: string; edad?: number }[] = [];
     for (const m of sec.matchAll(/href=["']([^"']*NFG_GC_VisLicencia\?[^"']*cod_licencia=(\d+)[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
@@ -74,7 +74,8 @@ function edadDe(fecha: any): number | undefined {
   if (t.getMonth() < d.getMonth() || (t.getMonth() === d.getMonth() && t.getDate() < d.getDate())) a--; return a;
 }
 async function cluber(info: any) {
-  const user = (Deno.env.get("CLUBER_USER") || "").replace(/\D/g, "");
+  // Cluber quiere el teléfono con 0034 delante
+  const user = "0034" + (Deno.env.get("CLUBER_USER") || "").replace(/\D/g, "").slice(-9);
   const r = await fetch("https://api.cluber.es/api/authentication_token", { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ username: user, password: (Deno.env.get("CLUBER_PASS") || "").trim() }) });
   const j = await r.json().catch(() => ({}));
   if (!j.token) throw new Error(r.status === 401 ? "Cluber: usuario o clave no válidos" : "Cluber: no se pudo entrar (" + r.status + ")");
@@ -83,7 +84,7 @@ async function cluber(info: any) {
   // El club: el primero donde la cuenta es gestora
   const groups = await get("/api/people-group-by-club");
   const clubs = listOf(groups).length ? listOf(groups) : Object.values(groups || {});
-  const hashes = [...new Set(clubs.map((c: any) => pick(c, "club.hash", "clubHash", "hash", "club.clubHash")).filter(Boolean))] as string[];
+  const hashes = [...new Set(clubs.filter((c: any) => (c.persons || []).some((p: any) => p.type === "manager") || !c.persons).map((c: any) => pick(c, "club.id", "club.hash", "clubHash", "hash")).filter(Boolean))] as string[];
   if (!hashes.length) throw new Error("Cluber: no se encontró el club en la cuenta");
   info.cluberClub = hashes[0];
   const out: any[] = [];
@@ -94,31 +95,60 @@ async function cluber(info: any) {
       const nombre = pick(p, "name", "firstName", "first_name", "person.name", "user.name") || "";
       const apellidos = pick(p, "surname", "surnames", "lastName", "last_name", "person.surname", "user.surname") || "";
       const full = (nombre + " " + apellidos).trim() || pick(p, "fullName", "full_name") || "";
-      const baja = pick(p, "deleted", "deletedAt", "deleted_at", "removedAt");
-      if (!full || baja) continue;
-      out.push({ nombre: full, edad: edadDe(pick(p, "birthdate", "birthDate", "birth_date", "person.birthdate", "user.birthdate")), equipo: pick(p, "team.name", "teams.0.name", "category.name") || "" });
+      if (!full || p.enabled === false) continue;
+      out.push({ nombre: full, edad: edadDe(pick(p, "birthdate", "birthDate", "birth_date", "person.birthdate", "user.birthdate")), equipo: pick(p, "team.customName", "team.name") || "", estado: p.status || "" });
     }
-    const total = pick(res, "hydra:totalItems", "totalItems", "total", "meta.total");
-    if (items.length < 100 || (total && out.length >= total)) break;
+    const total = pick(res, "count", "hydra:totalItems", "totalItems", "total");
+    if (total ? page * 100 >= total : items.length < 100) break;
   }
   return out;
 }
 
 // ---------- Cruce ----------
-// Futgal: "APELLIDO1 APELLIDO2, NOMBRE". Mismo jugador = mismo nombre de pila y comparten al menos
-// el primer apellido (o todos los apellidos de uno están en el otro). Si hay varios, desempata la edad.
+// Futgal: "APELLIDO1 APELLIDO2, NOMBRE". Candidato en Cluber = tiene el nombre de pila y comparte
+// el primer apellido (o todos). Gana quien comparte más apellidos; los repetidos en Cluber cuentan como uno.
+// Con el nombre completo igual es «sí» aunque la edad no cuadre (se avisa: suele ser la fecha mal puesta).
+// Si solo coincide en parte, la edad decide: con ±1 año es «sí»; si no, «no» (otra persona).
+// Si quedan varias personas distintas, desempata la edad; si aun así hay varias, «revisar».
 function cruzar(equipos: any[], cl: any[]) {
-  const C = cl.map(c => ({ ...c, t: new Set(toks(c.nombre)) }));
+  const C = cl.map(c => ({ ...c, tl: toks(c.nombre) })).map(c => ({ ...c, t: new Set(c.tl), k: c.tl.join(" ") }));
+  // Cuántos apellidos de Futgal están en Cluber, contando repetidos (Álvarez Álvarez ≠ Álvarez Acuña)
+  const comunes = (a: string[], b: string[]) => { const r = [...b]; let n = 0; for (const t of a) { const i = r.indexOf(t); if (i >= 0) { n++; r.splice(i, 1); } } return n; };
   for (const e of equipos) for (const j of e.jugadores) {
     const [ap, no] = j.nombre.includes(",") ? j.nombre.split(",") : ["", j.nombre];
     const tn = toks(no), ta = toks(ap);
-    let cands = C.filter(c => tn.length && tn.every((t: string) => c.t.has(t)) && ta.length && (c.t.has(ta[0]) || ta.every((t: string) => c.t.has(t))));
-    if (!cands.length) cands = C.filter(c => tn.length && c.t.has(tn[0]) && ta.filter((t: string) => c.t.has(t)).length >= Math.min(2, ta.length) && ta.length > 0);
-    if (cands.length > 1 && j.edad != null) { const byAge = cands.filter(c => c.edad != null && Math.abs(c.edad - j.edad) <= 1); if (byAge.length) cands = byAge; }
-    if (cands.length === 1) { j.enCluber = "si"; j.cluber = cands[0].nombre; }
-    else if (cands.length > 1) { j.enCluber = "duda"; j.cluber = cands.map(c => c.nombre + (c.edad != null ? " (" + c.edad + ")" : "")).join(" · "); }
+    const scored = C.map(c => {
+      if (!tn.length || !c.t.has(tn[0]) || !ta.length) return null;
+      const sa = comunes(ta, c.tl);
+      if (!sa || !(c.t.has(ta[0]) || sa === ta.length)) return null;
+      const nombreOk = tn.every((t: string) => c.t.has(t));
+      const full = sa === ta.length && nombreOk;
+      const exacto = full && c.tl.length === tn.length + ta.length;
+      const orden = ta.length > 1 && c.tl.indexOf(ta[0]) >= 0 && c.tl.indexOf(ta[0]) < c.tl.lastIndexOf(ta[ta.length - 1]) ? 1 : 0;
+      return { c, full, exacto, score: sa * 10 + (nombreOk ? 5 : 0) + (exacto ? 3 : 0) + orden };
+    }).filter(Boolean) as any[];
+    const best = scored.length ? Math.max(...scored.map(x => x.score)) : 0;
+    let cands = scored.filter(x => x.score === best);
+    const edadOk = (x: any) => j.edad == null || x.c.edad == null || Math.abs(x.c.edad - j.edad) <= 1;
+    // La misma persona dada de alta dos veces en Cluber cuenta como una
+    const rep = cands.length > 1 && new Set(cands.map(x => x.c.k)).size < cands.length;
+    const porNombre = new Map<string, any[]>(); for (const x of cands) porNombre.set(x.c.k, [...(porNombre.get(x.c.k) || []), x]);
+    cands = [...porNombre.values()].map(g => g.find(edadOk) || g[0]);
+    if (cands.length > 1) { const ok = cands.filter(edadOk); if (ok.length) cands = ok; }
+    const nom = (x: any) => x.c.nombre.replace(/\s+/g, " ").trim() + (x.c.edad != null ? " (" + x.c.edad + ")" : "");
+    delete j.nota; delete j.cluber;
+    if (cands.length === 1) {
+      const x = cands[0];
+      if (edadOk(x) || x.exacto) {
+        j.enCluber = "si"; j.cluber = nom(x); j.cluberEquipo = x.c.equipo;
+        const notas = [];
+        if (!edadOk(x)) notas.push("en Cluber tiene otra edad (" + x.c.edad + "): revisa la fecha de nacimiento");
+        if (rep) notas.push("está dado de alta dos veces en Cluber");
+        if (notas.length) j.nota = notas.join("; ");
+      } else if (x.full) { j.enCluber = "duda"; j.cluber = nom(x); j.nota = "el nombre cuadra pero la edad no"; }
+      else { j.enCluber = "no"; j.cluber = nom(x); }
+    } else if (cands.length > 1) { j.enCluber = "duda"; j.cluber = cands.map(nom).join(" · "); j.nota = "hay varios parecidos en Cluber"; }
     else j.enCluber = "no";
-    if (j.enCluber === "si" && j.edad != null && cands[0].edad != null && Math.abs(cands[0].edad - j.edad) > 1) { j.enCluber = "duda"; j.cluber += " (edad " + cands[0].edad + ")"; }
   }
 }
 
@@ -150,7 +180,7 @@ Deno.serve(async (req) => {
   const all = equipos.flatMap(e => e.jugadores);
   info.si = all.filter(j => j.enCluber === "si").length; info.no = all.filter(j => j.enCluber === "no").length; info.duda = all.filter(j => j.enCluber === "duda").length;
   const data = { ...info, equipos };
-  if (info.ok) await sb.from("panel_docs").upsert({ col: "fichas", id: "ultimo", data, updated_at: new Date().toISOString() });
+  if (info.ok) { await sb.from("panel_docs").upsert({ col: "fichas", id: "ultimo", data, updated_at: new Date().toISOString() }); await sb.from("panel_docs").delete().eq("col", "fichas").eq("id", "_error"); }
   else await sb.from("panel_docs").upsert({ col: "fichas", id: "_error", data: info, updated_at: new Date().toISOString() });
   return new Response(JSON.stringify(info), { headers: { ...CORS, "Content-Type": "application/json" } });
 });

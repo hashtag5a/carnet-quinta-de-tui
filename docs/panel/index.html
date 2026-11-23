@@ -1113,12 +1113,12 @@ async function excelFichas(r){
   if (!window.XLSX){ await new Promise((ok, ko) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"; sc.onload = ok; sc.onerror = ko; document.head.append(sc); }).catch(() => null); }
   if (!window.XLSX){ toast("No se pudo preparar el Excel. Revisa la conexión."); return; }
   const X = window.XLSX, wb = X.utils.book_new();
-  const fila = (e, j) => ({"Equipo": e.nombre, "Categoría": e.categoria, "Jugador (Futgal)": j.nombre, "Edad": j.edad ?? "", "En Cluber": FICHA_TXT[j.enCluber] || "", "Nombre en Cluber": j.cluber || "", "Cambio desde la última vez": j.cambio || ""});
+  const fila = (e, j) => ({"Equipo": e.nombre, "Categoría": e.categoria, "Jugador (Futgal)": j.nombre, "Edad": j.edad ?? "", "En Cluber": FICHA_TXT[j.enCluber] || "", "Nombre en Cluber": j.cluber || "", "Aviso": j.nota || "", "Cambio desde la última vez": j.cambio || ""});
   const todas = r.equipos.flatMap(e => e.jugadores.map(j => fila(e, j)));
   const add = (rows, name, cols) => { const ws = X.utils.json_to_sheet(rows); ws["!cols"] = cols.map(w => ({wch:w})); X.utils.book_append_sheet(wb, ws, name); };
   add(r.equipos.map(e => ({"Equipo": e.nombre, "Categoría": e.categoria, "Fichas": e.jugadores.length, "En Cluber": e.jugadores.filter(j => j.enCluber === "si").length, "No están": e.jugadores.filter(j => j.enCluber === "no").length, "Revisar": e.jugadores.filter(j => j.enCluber === "duda").length})), "Resumen", [42, 34, 8, 10, 10, 9]);
-  add(todas, "Por equipo", [42, 34, 34, 6, 10, 34, 24]);
-  add(todas.filter(x => x["En Cluber"] !== "Sí"), "No están en Cluber", [42, 34, 34, 6, 10, 34, 24]);
+  add(todas, "Por equipo", [42, 34, 34, 6, 10, 34, 40, 24]);
+  add(todas.filter(x => x["En Cluber"] !== "Sí"), "No están en Cluber", [42, 34, 34, 6, 10, 34, 40, 24]);
   X.writeFile(wb, "Fichas vs Cluber " + new Date(r.fecha).toISOString().slice(0, 10) + ".xlsx");
 }
 function viewFichas(){
@@ -1148,7 +1148,8 @@ function viewFichas(){
         h("div", {class:"row", style:"gap:6px"}, h("span", {class:"pill ok"}, e.jugadores.filter(j => j.enCluber === "si").length + " sí"), e.jugadores.some(j => j.enCluber !== "si") ? h("span", {class:"pill bad"}, e.jugadores.filter(j => j.enCluber !== "si").length + " no") : null)),
       h("div", {class:"grid", style:"gap:0"}, e.lista.map(j => h("div", {class:"row", style:"justify-content:space-between;border-top:1px solid var(--line);padding:7px 0;gap:8px"},
         h("div", {style:"min-width:0;flex:1"}, h("b", null, j.nombre), h("span", {class:"meta"}, j.edad != null ? " · " + j.edad + " años" : ""),
-          j.cluber && j.enCluber !== "si" ? h("div", {class:"meta"}, "Parecidos en Cluber: " + j.cluber) : null,
+          j.cluber && j.enCluber !== "si" ? h("div", {class:"meta"}, (j.enCluber === "no" ? "Parecido en Cluber (otra persona): " : "En Cluber: ") + j.cluber) : null,
+          j.nota ? h("div", {class:"meta", style:"color:var(--warn)"}, "⚠ " + j.nota) : null,
           j.cambio ? h("div", {class:"meta", style:"color:var(--steel)"}, "↻ " + j.cambio) : null),
         h("span", {class:"pill " + FICHA_PILL[j.enCluber]}, FICHA_TXT[j.enCluber])))))))
       : h("div", {class:"empty"}, filtro === "no" ? "Todos los fichados están en Cluber." : "Sin cambios desde la comparación anterior."))
