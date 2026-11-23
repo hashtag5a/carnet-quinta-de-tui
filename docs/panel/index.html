@@ -1448,16 +1448,37 @@ function cuentaResultados(p){
     const pt = B("patrocinios");
     if (pt.n || pt.proyeccion > 0.004) I.push({k:"donaciones", l:"Donaciones de empresas", info:"Patrocinios y donaciones", hoy: pt.hastaHoy, proy: pt.proyeccion, nota: ex(pt.extra), det: porEntidad(pt.items, x => x.importe)});
   }
-  { // Subvenciones: las del banco, las transferencias de la Federación y las ayudas que la Federación abona en la cuenta de Futgal
+  { // Subvenciones: las del banco (por entidad), las transferencias de la Federación y las ayudas que la Federación abona en la cuenta de Futgal.
+    // Previsto por entidad: lo que pongas a mano (cuentas/ip_<temporada>) o, si no, lo cobrado + lo que pagó el año pasado desde esta fecha
     const sv = B("subvenciones"), o = B("otros_ingresos"), fedB = o.items.filter(x => /federaci/i.test(x.concepto)), fedHoy = fedB.reduce((s,x) => s + x.importe, 0);
     const ays = Object.keys(S.cuentas).filter(k => k.startsWith("t_")).flatMap(k => S.cuentas[k].items || []).filter(x => x.concepto === "ayudas");
-    const ay = conPrevision(ays, rangoPeriodo(p), new Date().toISOString().slice(0,10), x => x.importe);
-    const det = porEntidad(sv.items, x => x.importe); if (fedHoy) det.push({l:"Federación (transferencias)", v: fedHoy}); if (ay.hastaHoy) det.push({l:"Federación (ayudas en la cuenta de Futgal)", v: ay.hastaHoy});
-    if (sv.n || ay.n || fedB.length || sv.proyeccion + ay.proyeccion > 0.004) I.push({k:"subvenciones", l:"Subvenciones", info:"Concello, Deputación, Xunta y Federación", hoy: sv.hastaHoy + fedHoy + ay.hastaHoy, proy: sv.proyeccion + fedHoy + ay.proyeccion, nota: ex(sv.extra + ay.extra), det});
+    const rg = rangoPeriodo(p), ay = conPrevision(ays, rg, new Date().toISOString().slice(0,10), x => x.importe);
+    const tem = p.modo === "anio" ? null : (p.extra ? p.extra.temporada : temporadaActual()), man = tem ? ((S.cuentas["ip_" + tem] || {}).previsto || {}) : {};
+    const ent = {}, e = n => (ent[n] ||= {hoy: 0, extra: 0});
+    sv.items.forEach(x => e(entidadDe(x.concepto)).hoy += x.importe);
+    if (bk && bk.corte < rg.hasta){ const a = menos1(bk.corte < rg.desde ? rg.desde : bk.corte), z2 = menos1(rg.hasta);
+      bancoMovs().filter(x => x.cat === "subvenciones" && x.fecha > a && x.fecha <= z2).forEach(x => e(entidadDe(x.concepto)).extra += x.importe); }
+    Object.keys(man).forEach(n => e(n));
+    const det = Object.entries(ent).map(([l, x]) => ({l, v: x.hoy, pr: man[l] != null ? Math.max(x.hoy, man[l]) : x.hoy + x.extra, manual: man[l] != null, edit: tem})).sort((a,b) => b.pr - a.pr);
+    if (fedHoy) det.push({l:"Federación (transferencias)", v: fedHoy, pr: fedHoy});
+    if (ay.hastaHoy || ay.extra) det.push({l:"Federación (ayudas en la cuenta de Futgal)", v: ay.hastaHoy, pr: ay.proyeccion});
+    const proy = det.reduce((s,d) => s + d.pr, 0), hoy = det.reduce((s,d) => s + d.v, 0), extraAnt = det.filter(d => !d.manual).reduce((s,d) => s + d.pr - d.v, 0);
+    if (det.length) I.push({k:"subvenciones", l:"Subvenciones", info:"Concello, Deputación, Xunta y Federación", hoy, proy,
+      nota: [...det.filter(d => d.manual).map(d => d.l + ": " + eur(d.pr) + " previsto"), ex(extraAnt)].filter(Boolean).join(" · "), det, conPrev: true});
   }
   const sum = (xs, c) => xs.reduce((s,x) => s + (x[c] || 0), 0);
   const tg = {hoy: sum(G,"hoy"), pagado: sum(G,"pagado"), pendiente: sum(G,"pendiente"), proy: sum(G,"proy")}, ti = {hoy: sum(I,"hoy"), proy: sum(I,"proy")};
   return {r, pf, mon, co, cl, bk, cb, G, I, tg, ti, campus: cb ? cb.campus.cobrado : 0};
+}
+// Previsto de una subvención: editable en la temporada (vacío = como el año pasado)
+function celdaPrevisto(d){
+  const st = "text-align:right;white-space:nowrap;font-size:13px";
+  if (!d.edit || /^Federación/.test(d.l)) return h("td", {style: st}, eur(d.pr));
+  return h("td", {style: st}, h("input", {type:"number", step:"0.01", min:"0", "aria-label":"Previsto " + d.l, title:"Previsto para esta temporada (vacío = como el año pasado)", style:"width:96px;text-align:right" + (d.manual ? ";font-weight:700" : ""),
+    value: d.manual ? d.pr : "", placeholder: eur(d.pr), onclick:(ev) => ev.stopPropagation(), onchange:(ev) => {
+      const tem = d.edit, doc = S.cuentas["ip_" + tem] || {temporada: tem, previsto: {}}, v = ev.target.value.trim(), pv = {...(doc.previsto || {})};
+      if (v === "") delete pv[d.l]; else pv[d.l] = Math.round(+v * 100) / 100;
+      put("cuentas", "ip_" + tem, {...doc, previsto: pv, actualizado: new Date().toISOString()}); }}));
 }
 function cardIngresos(p, R){
   if (!R.I.length) return h("div", {class:"card"}, h("h3", null, "Ingresos"), h("div", {class:"meta"}, "Faltan los datos: pulsa «Actualizar» (trae los cobros de Cluber) y pásame el extracto del banco."));
@@ -1472,7 +1493,7 @@ function cardIngresos(p, R){
       h("tbody", null, R.I.flatMap(x => { const ab = (ui.ingAbierto || {})[x.k], hay = x.det && x.det.length;
           return [h("tr", hay ? {style:"cursor:pointer", onclick:() => { ui.ingAbierto = {...(ui.ingAbierto || {}), [x.k]: !ab}; render(); }} : null,
             h("td", null, hay ? h("span", {class:"meta", style:"display:inline-block;width:14px"}, ab ? "▾" : "▸") : null, h("b", null, x.l), x.info ? h("div", {class:"meta desc"}, x.info) : null), h("td", td, eur(x.hoy)), h("td", td, eur(x.proy), x.nota ? h("div", {class:"meta", style:"white-space:normal"}, x.nota) : null)),
-            ...(ab && hay ? x.det.map(d => h("tr", null, h("td", {style:"padding-left:22px;font-size:13px" + (d.aparte ? ";color:var(--muted)" : "")}, d.l), h("td", {style:"text-align:right;white-space:nowrap;font-size:13px" + (d.aparte ? ";color:var(--muted)" : "")}, eur(d.v)), h("td", null))) : [])]; }),
+            ...(ab && hay ? x.det.map(d => h("tr", null, h("td", {style:"padding-left:22px;font-size:13px" + (d.aparte ? ";color:var(--muted)" : "")}, d.l), h("td", {style:"text-align:right;white-space:nowrap;font-size:13px" + (d.aparte ? ";color:var(--muted)" : "")}, eur(d.v)), x.conPrev ? celdaPrevisto(d) : h("td", null))) : [])]; }),
         h("tr", null, h("td", null, h("b", null, "Total ingresos")), h("td", td, h("b", null, eur(R.ti.hoy))), h("td", td, h("b", null, eur(R.ti.proy)))),
         h("tr", null, h("td", null, "Total gastos"), h("td", td, "−" + eur(R.tg.hoy)), h("td", td, "−" + eur(R.tg.proy))),
         h("tr", null, h("td", null, h("b", null, "Resultado")), h("td", {style:"text-align:right;white-space:nowrap;font-weight:700;" + color(res.hoy)}, eur(res.hoy)), h("td", {style:"text-align:right;white-space:nowrap;font-weight:700;" + color(res.proy)}, eur(res.proy)))))),
@@ -1514,7 +1535,7 @@ async function excelCuentas(p){
   const add = (rows, name, cols) => { const ws = X.utils.json_to_sheet(rows); ws["!cols"] = cols.map(w => ({wch:w})); X.utils.book_append_sheet(wb, ws, name); };
   add([...R.G.map(x => ({"Gasto": x.l, "Detalle": x.info || "", "Hasta hoy": r2(x.hoy), "Pagado": r2(x.pagado), "Pendiente de pago": r2(x.pendiente), [fin]: r2(x.proy), "Nota": x.nota || ""})),
     {"Gasto": "TOTAL GASTOS", "Hasta hoy": r2(R.tg.hoy), "Pagado": r2(R.tg.pagado), "Pendiente de pago": r2(R.tg.pendiente), [fin]: r2(R.tg.proy)}], "Gastos", [34, 50, 12, 12, 16, 22, 30]);
-  add([...R.I.flatMap(x => [{"Ingreso": x.l, "Detalle": x.info || "", "Hasta hoy": r2(x.hoy), [fin]: r2(x.proy), "Nota": x.nota || ""}, ...(x.det || []).map(d => ({"Ingreso": "", "Detalle": "   " + d.l, "Hasta hoy": r2(d.v), "Nota": d.aparte ? "no suma" : ""}))]),
+  add([...R.I.flatMap(x => [{"Ingreso": x.l, "Detalle": x.info || "", "Hasta hoy": r2(x.hoy), [fin]: r2(x.proy), "Nota": x.nota || ""}, ...(x.det || []).map(d => ({"Ingreso": "", "Detalle": "   " + d.l, "Hasta hoy": r2(d.v), [fin]: d.pr != null ? r2(d.pr) : "", "Nota": d.aparte ? "no suma" : d.manual ? "previsto a mano" : ""}))]),
     {"Ingreso": "TOTAL INGRESOS", "Hasta hoy": r2(R.ti.hoy), [fin]: r2(R.ti.proy)},
     {"Ingreso": "TOTAL GASTOS", "Hasta hoy": -r2(R.tg.hoy), [fin]: -r2(R.tg.proy)},
     {"Ingreso": "RESULTADO", "Hasta hoy": r2(R.ti.hoy - R.tg.hoy), [fin]: r2(R.ti.proy - R.tg.proy)}], "Ingresos y resultado", [34, 40, 12, 22, 30]);
