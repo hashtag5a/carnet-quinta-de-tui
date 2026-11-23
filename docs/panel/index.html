@@ -1167,8 +1167,8 @@ function viewFichas(){
 // Gastos con la Federación de cada temporada: el bot (futgal-cuentas) los trae de Futgal al pulsar «Actualizar».
 // Pendiente de pago = lo que falta por pagar (plazos de mutualidad y cargos de la cuenta del club sin cubrir).
 let cuentasBusy = false;
-const CONCEPTOS = [["mutualidad","Mutualidad"],["fichas","Fichas"],["cuotas","Cuotas de inscripción"],["arbitrajes","Arbitrajes"],["otros","Otros cargos"]];
-const CONCEPTO_INFO = {mutualidad:"Seguro de las licencias", fichas:"Derechos de licencia y afiliación de técnicos", cuotas:"Equipos y club", arbitrajes:"Cargos por partido", otros:"Pabellones y otros cargos", pagos:"Pagos del club a su cuenta en Futgal", ayudas:"Ayudas de la Federación abonadas en la cuenta del club"};
+const CONCEPTOS = [["mutualidad","Mutualidad"],["fichas","Fichas"],["cuotas","Cuotas de inscripción"],["arbitrajes","Arbitrajes"]];
+const CONCEPTO_INFO = {mutualidad:"Seguro de las licencias", fichas:"Derechos de licencia y afiliación de técnicos", cuotas:"Equipos y club", arbitrajes:"Tarjetas, sanciones y demás cargos de la cuenta del club", pagos:"Pagos del club a su cuenta en Futgal", ayudas:"Ayudas de la Federación abonadas en la cuenta del club"};
 // 1.234,56 € (con punto de miles también en cifras de cuatro dígitos)
 const eur = n => { const v = Math.round((Number(n) || 0) * 100) / 100, [e, d] = Math.abs(v).toFixed(2).split("."); return (v < 0 ? "-" : "") + e.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + d + " €"; };
 const r2 = n => Math.round((Number(n) || 0) * 100) / 100;
@@ -1239,7 +1239,7 @@ function viewCuentas(){
     x.doc ? h("button", {class:"btn ghost small", type:"button", onclick:() => abrirDoc(x.doc)}, "Abrir") : null);
   return [clubBar("Estado de cuentas"), dbNotice(), h("main", {class:"wrap"},
     h("h2", null, "Gastos con la Federación"),
-    ayuda("cuentas", "Lo que el club gasta en Futgal: lo pagado y lo pendiente de pago.", ["Se actualiza al pulsar «Actualizar de Futgal»: el bot entra y se queda con los datos de ese momento.", "Mutualidad: liquidaciones de las licencias. Se paga una parte con tarjeta y el resto queda en plazos.", "Fichas, cuotas y arbitrajes salen del extracto de la cuenta del club en Futgal. Cada pago del club se aplica a lo más antiguo, así se sabe qué queda pendiente.", "Para la cuenta de resultados, el gasto total es lo pagado más lo pendiente de pago.", "Todas las liquidaciones y el extracto se guardan en PDF. Elige temporada o año natural para descargarlos juntos (subvenciones).", "Al entrar en Futgal puede cerrar la sesión de quien esté dentro con el usuario del club."]),
+    ayuda("cuentas", "Lo que el club gasta en Futgal: lo pagado y lo pendiente de pago.", ["Se actualiza al pulsar «Actualizar de Futgal»: el bot entra y se queda con los datos de ese momento.", "Mutualidad: liquidaciones de las licencias. Se paga una parte con tarjeta y el resto queda en plazos.", "Fichas, cuotas y arbitrajes salen del extracto de la cuenta del club en Futgal. En arbitrajes va todo cargo que no sea ficha ni cuota (tarjetas, sanciones, pabellones…). Cada pago del club se aplica a lo más antiguo, así se sabe qué queda pendiente.", "Para la cuenta de resultados, el gasto total es lo pagado más lo pendiente de pago.", "Todas las liquidaciones y el extracto se guardan en PDF. Elige temporada o año natural para descargarlos juntos (subvenciones).", "Al entrar en Futgal puede cerrar la sesión de quien esté dentro con el usuario del club."]),
     st && !st.ok ? h("div", {class:"banner"}, "La última actualización falló: " + (st.error || "")) : null,
     h("div", {class:"footbar", style:"margin-bottom:12px"},
       h("span", {class:"meta"}, st && st.ok ? "Última actualización: " + new Date(st.fecha).toLocaleString("es-ES", {dateStyle:"short", timeStyle:"short"}) + " (" + st.temporada + ")" : "Todavía no se ha actualizado."),

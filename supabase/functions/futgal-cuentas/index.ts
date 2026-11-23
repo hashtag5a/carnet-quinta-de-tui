@@ -3,7 +3,7 @@
 //  - Liquidaciones: mutualidad de las licencias (se paga con tarjeta; el resto queda fraccionado).
 //  - Fraccionamientos: plazos de esas liquidaciones, pagados o pendientes.
 //  - Extracto de la cuenta del club: derechos de fichas, afiliación de técnicos, cuotas de equipo y club,
-//    gastos de cada partido (arbitraje) y los pagos del club. Los pagos se aplican a lo más antiguo primero.
+//    cargos de partido (arbitrajes, tarjetas, sanciones) y los pagos del club. Los pagos se aplican a lo más antiguo primero.
 // Guarda cada liquidación en PDF y el extracto en el almacenamiento privado `cuentas-docs` (repositorio
 // para subvenciones) y el resultado en panel_docs (col "cuentas", id "t_<temporada>" y "_estado").
 import { createClient } from "jsr:@supabase/supabase-js@2";
@@ -31,15 +31,14 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 // Filas de las tablas de una página: celdas ya limpias
 const filas = (h: string) => h.split(/<tr[\s>]/i).slice(1).map(tr => [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)].map(m => clean(m[1])));
 
-// Concepto de cada movimiento del extracto
+// Concepto de cada movimiento del extracto (decidido por Javi, 23/11/2026): fichas y cuotas aparte;
+// todo lo demás que sea gasto (cargos por partido, que son tarjetas y sanciones, pabellones, etc.) va a arbitrajes.
 function concepto(t: string): string {
-  const n = t.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+  const n = t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
   if (/^DCHOS?\b|DCHOS\. LIC|DERECHOS/.test(n)) return "fichas";
   if (/AFILIACION CGE/.test(n)) return "fichas";
   if (/CUOTA (EQUIPO|CLUB)/.test(n)) return "cuotas";
-  if (/SANCION|MULTA/.test(n)) return "otros";
-  if (/ -|- /.test(t)) return "arbitrajes"; // «LOCAL - VISITANTE»: gastos del partido
-  return "otros";
+  return "arbitrajes";
 }
 
 Deno.serve(async (req) => {
@@ -123,7 +122,7 @@ Deno.serve(async (req) => {
     let i = 0;
     for (const it of cola.filter(it => it.fecha >= desde && it.fecha <= hasta)) {
       const cpt = concepto(it.texto);
-      items.push({ id: "x" + (++i) + "_" + it.fecha, fecha: it.fecha, concepto: cpt, descripcion: it.texto, importe: it.debe, pagado: r2(it.debe - it.pend), pendiente: it.pend, origen: "extracto" });
+      items.push({ id: "x" + (++i) + "_" + it.fecha, fecha: it.fecha, concepto: cpt, descripcion: cpt === "arbitrajes" ? "Arbitraje y sanciones" : it.texto, detalle: cpt === "arbitrajes" ? it.texto : undefined, importe: it.debe, pagado: r2(it.debe - it.pend), pendiente: it.pend, origen: "extracto" });
     }
     for (const m of movsR.filter(m => m.haber && m.fecha >= desde && m.fecha <= hasta && !items.some(x => x.concepto === "pagos" && x.fecha === m.fecha && Math.abs(x.pagado - m.haber) < 0.01)))
       items.push({ id: "p" + (++i) + "_" + m.fecha, fecha: m.fecha, concepto: /AXUDA|AYUDA|SUBVENC/i.test(m.texto) ? "ayudas" : "pagos", descripcion: m.texto, importe: m.haber, pagado: m.haber, pendiente: 0, origen: "extracto" });
@@ -149,7 +148,7 @@ Deno.serve(async (req) => {
     for (const it of items.filter(x => x.origen === "extracto")) it.doc = extracto;
 
     // ---- Resumen ----
-    const conceptos = ["mutualidad", "fichas", "cuotas", "arbitrajes", "otros"];
+    const conceptos = ["mutualidad", "fichas", "cuotas", "arbitrajes"];
     const resumen: any = {};
     for (const k of conceptos) { const xs = items.filter(x => x.concepto === k); resumen[k] = { importe: r2(xs.reduce((s, x) => s + x.importe, 0)), pagado: r2(xs.reduce((s, x) => s + x.pagado, 0)), pendiente: r2(xs.reduce((s, x) => s + x.pendiente, 0)), n: xs.length }; }
     resumen.total = { importe: r2(conceptos.reduce((s, k) => s + resumen[k].importe, 0)), pagado: r2(conceptos.reduce((s, k) => s + resumen[k].pagado, 0)), pendiente: r2(conceptos.reduce((s, k) => s + resumen[k].pendiente, 0)) };
