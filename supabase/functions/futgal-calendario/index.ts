@@ -127,7 +127,10 @@ async function proponer(sb: any, C: Record<string, Record<string, any>>, wk: str
   return { finde: wk, propuestos: ok, sinHueco: sin };
 }
 
+const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 Deno.serve(async (req) => {
+  // El navegador pregunta antes (OPTIONS): se contesta sin entrar en Futgal.
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const opts = await req.json().catch(() => ({}));
   // Solo la entrada programada del martes lleva { martes: true }: es la única que respeta lo
@@ -245,5 +248,5 @@ Deno.serve(async (req) => {
       await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat_id: chat, text: lines.filter(Boolean).join("\n\n"), parse_mode: "HTML", disable_web_page_preview: true }) });
     }
   } catch (_) { /* sin aviso */ }
-  return Response.json(informe);
+  return Response.json(informe, { headers: CORS });
 });

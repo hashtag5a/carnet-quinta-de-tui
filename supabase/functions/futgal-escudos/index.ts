@@ -28,7 +28,10 @@ const dmy = (s: string) => s.slice(8, 10) + "-" + s.slice(5, 7) + "-" + s.slice(
 // Club del rival, sin patrocinador ni letra: 'S.D. ABETOS FS - LEYENDAS "C"' → 'S.D. ABETOS FS'
 const clubDe = (s: string) => String(s || "").split(/\s+-\s*|\s*-\s+/)[0].replace(/["'][A-Z]["']\s*$/, "").replace(/\s+/g, " ").trim();
 
+const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 Deno.serve(async (req) => {
+  // El navegador pregunta antes (OPTIONS): se contesta sin entrar en Futgal.
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const opts = await req.json().catch(() => ({}));
   const informe: Record<string, any> = { fecha: new Date().toISOString(), nuevos: [], yaTenia: 0, sinEscudoEnFutgal: [], sinCodigo: [], errores: [] };
@@ -41,7 +44,7 @@ Deno.serve(async (req) => {
       const out: any = {};
       for (const u of opts.extra) { const h = await text(await go(u)); const q = h.indexOf(opts.buscar || "@@"); out[u] = { len: h.length, cerca: q < 0 ? "" : h.slice(Math.max(0, q - 1500), q + 1500) }; }
       await sb.from("panel_docs").upsert({ col: "_debug", id: "escudos", data: out });
-      return Response.json({ ok: true, diagnostico: true });
+      return Response.json({ ok: true, diagnostico: true }, { headers: CORS });
     }
 
     // 1. Nuestros partidos de los próximos días: código de partido → [club local, club visitante]
@@ -103,5 +106,5 @@ Deno.serve(async (req) => {
     informe.ok = true;
   } catch (e) { informe.ok = false; informe.error = String((e as Error)?.message || e); }
   await sb.from("panel_docs").upsert({ col: "config", id: "futgal_escudos", data: informe });
-  return Response.json(informe);
+  return Response.json(informe, { headers: CORS });
 });
