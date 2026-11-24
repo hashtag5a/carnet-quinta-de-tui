@@ -1476,7 +1476,13 @@ function cuentaResultados(p){
   }
   const sum = (xs, c) => xs.reduce((s,x) => s + (x[c] || 0), 0);
   const tg = {hoy: sum(G,"hoy"), pagado: sum(G,"pagado"), pendiente: sum(G,"pendiente"), proy: sum(G,"proy")}, ti = {hoy: sum(I,"hoy"), proy: sum(I,"proy")};
-  return {r, pf, mon, co, cl, bk, cb, G, I, tg, ti, campus: cb ? cb.campus.cobrado : 0};
+  // Campus (actividad aparte): el del verano con el que empieza la temporada (o el del año natural). Se cobra en mayo-junio y se gasta en julio
+  const anioC = p.modo === "anio" ? p.anio : (p.extra ? p.extra.temporada : temporadaActual()).slice(0,4);
+  const cIng = ((S.cuentas.cluber || {}).cobros || []).filter(c => c.cat === "campus" && c.estado === "cobrado" && c.ym.slice(0,4) === anioC).reduce((s,c) => s + c.importe, 0);
+  const cBan = bancoMovs().filter(m => m.cat === "campus" && m.fecha.slice(0,4) === anioC);
+  const campus = {anio: anioC, ing: cIng + cBan.filter(m => m.importe > 0).reduce((s,m) => s + m.importe, 0), gas: -cBan.filter(m => m.importe < 0).reduce((s,m) => s + m.importe, 0)};
+  campus.res = campus.ing - campus.gas; campus.hay = campus.ing > 0.004 || campus.gas > 0.004;
+  return {r, pf, mon, co, cl, bk, cb, G, I, tg, ti, campus};
 }
 // Previsto de una subvención: editable en la temporada (vacío = como el año pasado)
 function celdaPrevisto(d){
@@ -1507,7 +1513,7 @@ function cardCobrosCluber(p){
 }
 // Al tocar una partida (gasto o ingreso) lleva al apartado donde está su desglose
 function irA(k){
-  const bancoF = {transferencias:"g_transfer", donaciones:"patrocinios", subvenciones:"g_subv"}[k] || (BANCO_CATS.some(([c]) => c === k) ? k : null);
+  const bancoF = {campus:"campus", transferencias:"g_transfer", donaciones:"patrocinios", subvenciones:"g_subv"}[k] || (BANCO_CATS.some(([c]) => c === k) ? k : null);
   let id;
   if (CONCEPTOS.some(([c]) => c === k)){ ui.cuentaAbiertos = ui.cuentaAbiertos || new Set(); ui.cuentaAbiertos.add(k); id = "cu-fg-" + k; }
   else if (k === "monitores") id = "cu-monitores";
@@ -1539,8 +1545,10 @@ function cardIngresos(p, R){
             ...(ab && hay ? x.det.map(d => h("tr", null, h("td", {style:"padding-left:22px;font-size:13px" + (d.aparte ? ";color:var(--muted)" : "")}, d.l), h("td", {style:"text-align:right;white-space:nowrap;font-size:13px" + (d.aparte ? ";color:var(--muted)" : "")}, eur(d.v)), x.conPrev ? celdaPrevisto(d) : h("td", null))) : [])]; }),
         h("tr", null, h("td", null, h("b", null, "Total ingresos")), h("td", td, h("b", null, eur(R.ti.hoy))), h("td", td, h("b", null, eur(R.ti.proy)))),
         h("tr", null, h("td", null, "Total gastos"), h("td", td, "−" + eur(R.tg.hoy)), h("td", td, "−" + eur(R.tg.proy))),
-        h("tr", null, h("td", null, h("b", null, "Resultado")), h("td", {style:"text-align:right;white-space:nowrap;font-weight:700;" + color(res.hoy)}, eur(res.hoy)), h("td", {style:"text-align:right;white-space:nowrap;font-weight:700;" + color(res.proy)}, eur(res.proy)))))),
-    R.campus ? h("div", {class:"meta"}, "Fuera de la cuenta: " + eur(R.campus) + " cobrados del Campus en este periodo (otra actividad).") : null,
+        h("tr", null, h("td", null, h("b", null, "Resultado")), h("td", {style:"text-align:right;white-space:nowrap;font-weight:700;" + color(res.hoy)}, eur(res.hoy)), h("td", {style:"text-align:right;white-space:nowrap;font-weight:700;" + color(res.proy)}, eur(res.proy))),
+        R.campus.hay ? h("tr", null, h("td", null, enlaceA("campus", "Campus " + R.campus.anio), h("div", {class:"meta desc"}, "Actividad aparte")), h("td", td, eur(R.campus.res)), h("td", td, eur(R.campus.res))) : null,
+        R.campus.hay ? h("tr", null, h("td", null, h("b", null, "Resultado con Campus")), h("td", {style:"text-align:right;white-space:nowrap;font-weight:700;" + color(res.hoy + R.campus.res)}, eur(res.hoy + R.campus.res)), h("td", {style:"text-align:right;white-space:nowrap;font-weight:700;" + color(res.proy + R.campus.res)}, eur(res.proy + R.campus.res))) : null))),
+    R.campus.hay ? h("div", {class:"meta"}, "Campus " + R.campus.anio + " (actividad aparte): " + eur(R.campus.ing) + " cobrados (Cluber y transferencias) − " + eur(R.campus.gas) + " de gastos del banco (todo lo de julio). Lo que deja el Campus sirve para empezar la temporada.") : null,
     R.cb && R.cb.cuotas.impagado > 0.004 ? h("div", {class:"meta", style:"color:var(--bad)"}, "Cuotas impagadas en Cluber: " + eur(R.cb.cuotas.impagado) + " (no se cuentan como ingreso).") : null);
 }
 function cardBanco(p, bk){
@@ -1585,7 +1593,9 @@ async function excelCuentas(p){
   add([...R.I.flatMap(x => [{"Ingreso": x.l, "Detalle": x.info || "", "Hasta hoy": r2(x.hoy), [fin]: r2(x.proy), "Nota": x.nota || ""}, ...(x.det || []).map(d => ({"Ingreso": "", "Detalle": "   " + d.l, "Hasta hoy": r2(d.v), [fin]: d.pr != null ? r2(d.pr) : "", "Nota": d.aparte ? "no suma" : d.manual ? "previsto a mano" : ""}))]),
     {"Ingreso": "TOTAL INGRESOS", "Hasta hoy": r2(R.ti.hoy), [fin]: r2(R.ti.proy)},
     {"Ingreso": "TOTAL GASTOS", "Hasta hoy": -r2(R.tg.hoy), [fin]: -r2(R.tg.proy)},
-    {"Ingreso": "RESULTADO", "Hasta hoy": r2(R.ti.hoy - R.tg.hoy), [fin]: r2(R.ti.proy - R.tg.proy)}], "Ingresos y resultado", [34, 40, 12, 22, 30]);
+    {"Ingreso": "RESULTADO", "Hasta hoy": r2(R.ti.hoy - R.tg.hoy), [fin]: r2(R.ti.proy - R.tg.proy)},
+    ...(R.campus.hay ? [{"Ingreso": "Campus " + R.campus.anio + " (aparte)", "Detalle": "Cobrado " + r2(R.campus.ing) + " − gastos " + r2(R.campus.gas), "Hasta hoy": r2(R.campus.res), [fin]: r2(R.campus.res)},
+      {"Ingreso": "RESULTADO CON CAMPUS", "Hasta hoy": r2(R.ti.hoy - R.tg.hoy + R.campus.res), [fin]: r2(R.ti.proy - R.tg.proy + R.campus.res)}] : [])], "Ingresos y resultado", [34, 40, 12, 22, 30]);
   if (R.bk) add(R.bk.movs.map(m => ({"Fecha": fechaCorta(m.fechaReal || m.fecha), "Concepto": m.concepto, "Importe": r2(m.importe), "Categoría": BANCO_NOM[m.cat] || m.cat})), "Banco", [12, 80, 12, 40]);
   add(co.filas.map(f => ({"Mes": mesTxt(f.ym), "Nómina de Xaco": r2(f.nomina.valor), "Nómina estimada": f.nomina.estimado ? "sí (temporada pasada)" : "", "Seguridad Social": r2(f.ss.valor), "S. Social estimada": f.ss.estimado ? "sí (temporada pasada)" : "", "Documentos": [f.docs.nomina, f.docs.ss, f.docs.rnt, f.docs.ssPago].filter(Boolean).map(x => x.split("/").pop()).join("; ")})), "Coordinador", [16, 14, 20, 16, 20, 60]);
   if (cl.n) add(cl.facturas.map(f => ({"Mes": mesTxt(f.fecha.slice(0,7)), "Factura": f.numero, "Emitida": fechaCorta(f.emision), "Base": r2(f.neto), "IVA": r2(f.iva), "Total": r2(f.total), "Estado": f.pagada ? "Pagada" : "Pendiente", "Cobrada el": f.pago ? fechaCorta(f.pago) : "", "Documento": f.doc ? f.doc.split("/").pop() : ""})), "Cluber", [16, 14, 12, 10, 10, 10, 10, 12, 34]);
