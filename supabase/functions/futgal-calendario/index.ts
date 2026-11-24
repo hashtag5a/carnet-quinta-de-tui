@@ -191,6 +191,7 @@ Deno.serve(async (req) => {
         if (!!cur.casa !== casa) dif.push(casa ? "ahora en casa" : "ahora fuera");
         if (p.hora && (cur.hora || "") !== p.hora) dif.push(`hora ${cur.hora || "—"} → ${p.hora}`);
         if (!casa && norm(cur.lugar || "") !== norm(p.campo)) dif.push(`campo «${cur.lugar || "—"}» → «${p.campo}»`);
+        if (casa && p.campo && (cur.pabellonId || "") !== pabFor(p.campo)) dif.push(`pabellón → «${p.campo}»`);
         if (dif.length) { const e = C.equipos[eid]; informe.cambios.push(`${e.categoria} ${e.nombre}: ${dif.join(", ")} (actualizado)`); }
       }
       const bloqueado = (cur.estado === "confirmado" || cur.fija) && !opts.ultimo;
@@ -205,7 +206,7 @@ Deno.serve(async (req) => {
         await sb.from("panel_docs").update({ data: C.partidos[id] }).eq("col", "partidos").eq("id", id);
         continue;
       }
-      const upd = { ...cur, ...nuevo, hora: casa ? (p.hora || (cur.casa ? cur.hora : "")) : p.hora, fija: casa && p.hora ? true : !!cur.fija, pabellonId: casa ? (cur.pabellonId || pabFor(p.campo)) : "" };
+      const upd = { ...cur, ...nuevo, hora: casa ? (p.hora || (cur.casa ? cur.hora : "")) : p.hora, fija: casa && p.hora ? true : !!cur.fija, pabellonId: casa ? (p.campo ? pabFor(p.campo) : cur.pabellonId) : "" }; // el campo de Futgal manda
       C.partidos[id] = upd;
       await sb.from("panel_docs").update({ data: upd }).eq("col", "partidos").eq("id", id);
       informe.actualizados++;
