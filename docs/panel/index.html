@@ -1374,15 +1374,20 @@ const BANCO_CATS = [
   ["arbitros","fuera","Árbitros (ya salen de Futgal)"], ["ya_futgal","fuera","Pagos a Futgal (ya contados)"], ["ya_coordinador","fuera","Nómina y S. Social de Xaco (ya contados)"],
   ["ya_cluber","fuera","Recibos de Cluber (ya contados)"], ["ya_cobros_cluber","fuera","Ingresos de Cluber (se cuentan desde Cluber)"], ["campus","fuera","Campus (otra actividad)"], ["sin","fuera","Sin clasificar"]];
 const BANCO_NOM = Object.fromEntries(BANCO_CATS.map(([k,,l]) => [k, l]));
-function bancoMovs(){ const b = S.cuentas.banco || {}, ov = (S.cuentas.banco_cat || {}).cat || {}; return (b.movs || []).map(m => ({...m, cat: ov[m.id] || m.cat})); }
-function cambiarCatBanco(id, cat){ const d = S.cuentas.banco_cat || {cat:{}}; put("cuentas", "banco_cat", {cat: {...(d.cat || {}), [id]: cat}, actualizado: new Date().toISOString()}); }
+// Cambios hechos en el panel (cuentas/banco_cat): categoría {id: cat} y temporada a la que se apunta {id: "AAAA-AAAA"}.
+// Un movimiento llevado a otra temporada cuenta con fecha del 30 de junio de esa temporada (fechaReal guarda la del banco)
+function bancoMovs(){ const b = S.cuentas.banco || {}, d = S.cuentas.banco_cat || {}, ov = d.cat || {}, tv = d.tem || {};
+  return (b.movs || []).map(m => { const x = {...m, cat: ov[m.id] || m.cat}; if (tv[m.id]) { x.fechaReal = m.fecha; x.fecha = tv[m.id].slice(5) + "-06-30"; x.temMovida = tv[m.id]; } return x; }); }
+function cambiarCatBanco(id, cat){ const d = S.cuentas.banco_cat || {}; put("cuentas", "banco_cat", {...d, cat: {...(d.cat || {}), [id]: cat}, actualizado: new Date().toISOString()}); }
+function cambiarTemBanco(id, tem){ const d = S.cuentas.banco_cat || {}, tv = {...(d.tem || {})}; if (tem) tv[id] = tem; else delete tv[id]; put("cuentas", "banco_cat", {...d, tem: tv, actualizado: new Date().toISOString()}); }
+const temDeFecha = f => { const y = +f.slice(0,4), m = +f.slice(5,7); return m >= 7 ? y + "-" + (y + 1) : (y - 1) + "-" + y; };
 function rangoPeriodo(p){ if (p.modo === "anio") return {desde: p.anio + "-01-01", hasta: p.anio + "-12-31"}; const tem = p.extra ? p.extra.temporada : temporadaActual(), y = +tem.slice(0,4); return {desde: y + "-07-01", hasta: (y + 1) + "-06-30"}; }
 // Lo que hay hasta el corte + lo que hubo el año anterior desde esa misma fecha hasta el final (si el periodo sigue abierto)
 function conPrevision(xs, rg, corte, valor){
   const dentro = xs.filter(x => x.fecha >= rg.desde && x.fecha <= rg.hasta && x.fecha <= corte);
   const hastaHoy = dentro.reduce((s,x) => s + valor(x), 0);
   let extra = 0;
-  if (corte < rg.hasta){ const a = menos1(corte < rg.desde ? rg.desde : corte), b = menos1(rg.hasta); extra = xs.filter(x => x.fecha > a && x.fecha <= b).reduce((s,x) => s + valor(x), 0); }
+  if (corte < rg.hasta){ const a = menos1(corte < rg.desde ? rg.desde : corte), b = menos1(rg.hasta); extra = xs.filter(x => x.fecha > a && x.fecha <= b && !x.temMovida).reduce((s,x) => s + valor(x), 0); }
   return {hastaHoy, extra, proyeccion: hastaHoy + extra, n: dentro.length, items: dentro};
 }
 function calcBanco(p){
@@ -1460,7 +1465,7 @@ function cuentaResultados(p){
     const ent = {}, e = n => (ent[n] ||= {hoy: 0, extra: 0});
     sv.items.forEach(x => e(entidadDe(x.concepto)).hoy += x.importe);
     if (bk && bk.corte < rg.hasta){ const a = menos1(bk.corte < rg.desde ? rg.desde : bk.corte), z2 = menos1(rg.hasta);
-      bancoMovs().filter(x => x.cat === "subvenciones" && x.fecha > a && x.fecha <= z2).forEach(x => e(entidadDe(x.concepto)).extra += x.importe); }
+      bancoMovs().filter(x => x.cat === "subvenciones" && !x.temMovida && x.fecha > a && x.fecha <= z2).forEach(x => e(entidadDe(x.concepto)).extra += x.importe); }
     Object.keys(man).forEach(n => e(n));
     const det = Object.entries(ent).map(([l, x]) => ({l, v: x.hoy, pr: man[l] != null ? Math.max(x.hoy, man[l]) : x.hoy + x.extra, manual: man[l] != null, edit: tem})).sort((a,b) => b.pr - a.pr);
     if (fedHoy) det.push({l:"Federación (transferencias)", v: fedHoy, pr: fedHoy});
@@ -1550,9 +1555,12 @@ function cardBanco(p, bk){
       h("select", {"aria-label":"Qué movimientos ver", onchange:(ev) => { ui.bancoFiltro = ev.target.value; render(); }},
         [["contadas","Los que cuentan"],["fuera","Los que quedan fuera"],["todas","Todos"],["g_transfer","Transferencias de jugadores (con devoluciones)"],["g_subv","Subvenciones (con la Federación)"], ...BANCO_CATS.map(([k,,l]) => [k, l])].map(([k,l]) => h("option", {value:k, selected: k === filtro}, l)))),
     xs.length ? xs.map(m => h("div", {style:"display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;border-top:1px solid var(--line);padding:7px 0"},
-      h("div", {style:"flex:1 1 240px;min-width:0"}, h("div", {style:"font-size:13px;overflow-wrap:anywhere"}, m.concepto), h("div", {class:"meta"}, fechaCorta(m.fecha))),
+      h("div", {style:"flex:1 1 240px;min-width:0"}, h("div", {style:"font-size:13px;overflow-wrap:anywhere"}, m.concepto), h("div", {class:"meta"}, fechaCorta(m.fechaReal || m.fecha), m.temMovida ? h("b", null, " · cuenta en la temporada " + m.temMovida) : null)),
       h("b", {style:"white-space:nowrap;" + (m.importe < 0 ? "" : "color:var(--ok)")}, eur(m.importe)),
-      h("select", {"aria-label":"Categoría", style:"flex:0 1 230px;min-width:0", onchange:(ev) => cambiarCatBanco(m.id, ev.target.value)}, BANCO_CATS.map(([k,,l]) => h("option", {value:k, selected: k === m.cat}, l))))) : h("div", {class:"meta"}, "No hay movimientos con ese filtro."));
+      h("select", {"aria-label":"Categoría", style:"flex:0 1 230px;min-width:0", onchange:(ev) => cambiarCatBanco(m.id, ev.target.value)}, BANCO_CATS.map(([k,,l]) => h("option", {value:k, selected: k === m.cat}, l))),
+      (() => { const f = m.fechaReal || m.fecha, t = temDeFecha(f), y = +t.slice(0,4), ops = [(y - 1) + "-" + y, (y + 1) + "-" + (y + 2)];
+        return h("select", {"aria-label":"Temporada a la que corresponde", title:"Temporada a la que corresponde", style:"flex:0 1 150px;min-width:0", onchange:(ev) => cambiarTemBanco(m.id, ev.target.value)},
+          h("option", {value:""}, "Temporada " + t.slice(2,4) + "-" + t.slice(7,9)), ops.map(o => h("option", {value:o, selected: o === m.temMovida}, "Es de la " + o.slice(2,4) + "-" + o.slice(7,9)))); })())) : h("div", {class:"meta"}, "No hay movimientos con ese filtro."));
 }
 // Periodo elegido: una temporada o un año natural (para subvenciones)
 function periodoCuentas(){
@@ -1578,7 +1586,7 @@ async function excelCuentas(p){
     {"Ingreso": "TOTAL INGRESOS", "Hasta hoy": r2(R.ti.hoy), [fin]: r2(R.ti.proy)},
     {"Ingreso": "TOTAL GASTOS", "Hasta hoy": -r2(R.tg.hoy), [fin]: -r2(R.tg.proy)},
     {"Ingreso": "RESULTADO", "Hasta hoy": r2(R.ti.hoy - R.tg.hoy), [fin]: r2(R.ti.proy - R.tg.proy)}], "Ingresos y resultado", [34, 40, 12, 22, 30]);
-  if (R.bk) add(R.bk.movs.map(m => ({"Fecha": fechaCorta(m.fecha), "Concepto": m.concepto, "Importe": r2(m.importe), "Categoría": BANCO_NOM[m.cat] || m.cat})), "Banco", [12, 80, 12, 40]);
+  if (R.bk) add(R.bk.movs.map(m => ({"Fecha": fechaCorta(m.fechaReal || m.fecha), "Concepto": m.concepto, "Importe": r2(m.importe), "Categoría": BANCO_NOM[m.cat] || m.cat})), "Banco", [12, 80, 12, 40]);
   add(co.filas.map(f => ({"Mes": mesTxt(f.ym), "Nómina de Xaco": r2(f.nomina.valor), "Nómina estimada": f.nomina.estimado ? "sí (temporada pasada)" : "", "Seguridad Social": r2(f.ss.valor), "S. Social estimada": f.ss.estimado ? "sí (temporada pasada)" : "", "Documentos": [f.docs.nomina, f.docs.ss, f.docs.rnt, f.docs.ssPago].filter(Boolean).map(x => x.split("/").pop()).join("; ")})), "Coordinador", [16, 14, 20, 16, 20, 60]);
   if (cl.n) add(cl.facturas.map(f => ({"Mes": mesTxt(f.fecha.slice(0,7)), "Factura": f.numero, "Emitida": fechaCorta(f.emision), "Base": r2(f.neto), "IVA": r2(f.iva), "Total": r2(f.total), "Estado": f.pagada ? "Pagada" : "Pendiente", "Cobrada el": f.pago ? fechaCorta(f.pago) : "", "Documento": f.doc ? f.doc.split("/").pop() : ""})), "Cluber", [16, 14, 12, 10, 10, 10, 10, 12, 34]);
   if (mon.filas.length) add(mon.filas.filter(m => m.meses).map(m => ({"Monitor": m.nombre, "Categoría": m.categoria || "", "Temporada": m.temporada, "€ al mes": r2(m.importe), "Meses en el periodo": m.meses, "Desde": mesTxt(m.desde), "Hasta": mesTxt(m.hasta), "Meses ya terminados": m.hechos, "Gasto hasta hoy": r2(m.hastaHoy), [fin]: r2(m.proyeccion), ...Object.fromEntries(Object.entries(m.porAnio).sort().map(([a,v]) => ["Año " + a, r2(v)]))})), "Monitores", [26, 16, 11, 10, 10, 16, 16, 10, 14, 22, 12, 12]);
