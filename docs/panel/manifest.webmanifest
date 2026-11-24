@@ -1,0 +1,2 @@
+{"id":"./","name":"Panel A Quinta","short_name":"Panel A Quinta","description":"Panel de administración de A Quinta de Tui Futsal","start_url":"./","scope":"./","display":"standalone","orientation":"portrait","background_color":"#EEE7D6","theme_color":"#EEE7D6","lang":"es",
+"icons":[{"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any"},{"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any"},{"src":"icon-maskable-512.png","sizes":"512x512","type":"image/png","purpose":"maskable"}]}
